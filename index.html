@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Star Trader — Solo Trading Game</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<div class="topbar">
+  <h1>STAR<span>TRADER</span></h1>
+  <div class="stat"><span class="lbl">Credits</span><span class="val" id="t-credits">—</span></div>
+  <div class="stat"><span class="lbl">Net Profit</span><span class="val" id="t-profit">—</span></div>
+  <div class="stat"><span class="lbl">Week</span><span class="val" id="t-week">—</span></div>
+  <div class="stat"><span class="lbl">Day</span><span class="val" id="t-day">—</span></div>
+  <div class="stat"><span class="lbl">Location</span><span class="val" id="t-loc">—</span></div>
+  <div class="stat"><span class="lbl">Hold</span><span class="val" id="t-hold">—</span></div>
+  <div class="spacer"></div>
+  <button onclick="showShip()">Ship</button>
+  <button onclick="showCrew()">Crew</button>
+  <button onclick="showFinancials()">Financials</button>
+  <button onclick="showHelp()">How to Play</button>
+  <button class="danger" onclick="confirmNewGame()">New Game</button>
+</div>
+
+<div class="layout">
+  <!-- LEFT: subsector -->
+  <div class="col">
+    <div class="card">
+      <h3>Star Map <span class="pill" id="ss-name"></span></h3>
+      <div class="body" style="padding:8px;">
+        <div id="starmap"></div>
+        <div class="hint" style="margin-top:6px;">Jump range <b id="jrange">J2</b>. Click a world to set your destination — bright hexes are within range. Hover for details.</div>
+      </div>
+    </div>
+    <div class="card">
+      <h3>World List</h3>
+      <div class="body">
+        <div class="worlds" id="worldlist"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- CENTER: world + market + hold -->
+  <div class="col">
+    <div class="card">
+      <h3>Current World — <span id="cw-name"></span></h3>
+      <div class="body" id="cw-detail"></div>
+    </div>
+
+    <div class="card">
+      <h3>Market <span class="pill" id="mkt-src"></span></h3>
+      <div class="body">
+        <div class="toolbar">
+          <button class="primary" onclick="searchCargo('port')">Search at Starport (2 days)</button>
+          <button onclick="searchCargo('away')">Search Away from Port (3 days)</button>
+        </div>
+        <div id="market"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>Cargo Hold <span class="pill" id="hold-cap"></span></h3>
+      <div class="body" id="hold"></div>
+    </div>
+  </div>
+
+  <!-- RIGHT: actions + log -->
+  <div class="col">
+    <div class="card">
+      <h3>Bridge Actions</h3>
+      <div class="body">
+        <div class="toolbar">
+          <button onclick="doPortEvent()">Walk the Port (Port Event)</button>
+          <button onclick="doMeetContact()">Look for Contacts</button>
+        </div>
+        <div class="hint">Selected destination: <b id="dest-name">none</b></div>
+        <div class="row" style="margin-top:6px;">
+          <button class="primary" id="jumpbtn" onclick="doJump()" disabled>Jump ▶</button>
+          <span class="hint" id="jump-info"></span>
+        </div>
+        <div id="event-area"></div>
+      </div>
+    </div>
+    <div class="card">
+      <h3>Ledger / Diary</h3>
+      <div class="body log" id="log" style="max-height:50vh;overflow-y:auto;padding:0;"></div>
+    </div>
+  </div>
+</div>
+
+<!-- modal -->
+<div class="modal-bg" id="modal-bg" onclick="if(event.target===this)closeModal()">
+  <div class="modal"><div class="body" id="modal-body"></div></div>
+</div>
+
+<!-- event pop-up (separate layer so it never collides with Ship/Crew/etc.) -->
+<div class="modal-bg" id="ev-bg" style="z-index:60" onclick="if(event.target===this&&!EV_CHOICE)evNext()">
+  <div class="modal evpop"><div class="body" id="ev-body"></div></div>
+</div>
+
+<script src="js/data.js"></script>
+<script src="js/world.js"></script>
+<script src="js/ship.js"></script>
+<script src="js/game.js"></script>
+<script src="js/events.js"></script>
+<script src="js/npc.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/main.js"></script>
+</body>
+</html>

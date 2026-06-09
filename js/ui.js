@@ -100,16 +100,18 @@ function renderMarket(){
     const maxBuy=Math.min(m.tons,free,Math.floor(G.credits/m.ppt));
     const margin=m.mult; // <1 = cheap
     const cls = margin<0.9?'pos': margin>1.3?'neg':'';
-    return '<tr><td>'+m.name+(m.illegal?' <span class="code bad">illeg</span>':'')+(m.quality?' <span class="code">top quality</span>':'')+
-      '<div class="meta muted" style="font-size:10px">'+goodCat(m)+'</div></td>'+
-      '<td class="num">'+cr(m.base)+'</td>'+
+    const nameHtml=m.name+(m.illegal?' <span class="code bad">illeg</span>':'')+(m.quality?' <span class="code">top quality</span>':'')+
+      '<div class="meta muted" style="font-size:10px">'+goodCat(m)+'</div>';
+    return '<tr class="namerow"><td colspan="5">'+nameHtml+'</td></tr>'+   // mobile: name gets its own line
+      '<tr><td class="name-cell">'+nameHtml+'</td>'+
+      '<td class="num hide-sm">'+cr(m.base)+'</td>'+
       '<td class="num '+cls+'">'+cr(m.ppt)+'</td>'+
       '<td class="num qty">'+m.tons+'t</td>'+
       '<td class="num"><input type="number" id="buy-'+i+'" min="0" max="'+maxBuy+'" value="'+maxBuy+'" '+(maxBuy<=0?'disabled':'')+'></td>'+
       '<td><button '+(maxBuy<=0?'disabled':'')+' onclick="buyGood('+i+')">Buy</button></td></tr>';
   }).join('');
   document.getElementById('market').innerHTML=
-    '<table><thead><tr><th>Good</th><th class="num">Base</th><th class="num">Price/t</th><th class="num">Avail</th><th class="num">Tons</th><th></th></tr></thead><tbody>'+rows+'</tbody></table>'+
+    '<table><thead><tr><th class="name-cell">Good</th><th class="num hide-sm">Base</th><th class="num">Price/t</th><th class="num">Avail</th><th class="num">Tons</th><th></th></tr></thead><tbody>'+rows+'</tbody></table>'+
     '<div class="hint" style="margin-top:6px;">Green price = good buy (below base). Buy low here, sell where the world’s trade codes want it.</div>';
 }
 function renderHold(){
@@ -121,15 +123,17 @@ function renderHold(){
     const estResult=7+SHIPS[G.ship].broker+maxDM(g.rDM,w.codes)-maxDM(g.pDM,w.codes)+(h.quality?1:0); // avg 2d6=7
     const estPpt=Math.round(h.base*priceMult(estResult,true));
     const good=estPpt>h.ppt;
-    return '<tr><td>'+h.name+(h.quality?' <span class="code">top quality</span>':'')+
-      '<div class="meta muted" style="font-size:10px">'+goodCat(h)+' · from '+h.origin+'</div></td>'+
+    const nameHtml=h.name+(h.quality?' <span class="code">top quality</span>':'')+
+      '<div class="meta muted" style="font-size:10px">'+goodCat(h)+' · from '+h.origin+'</div>';
+    return '<tr class="namerow"><td colspan="4">'+nameHtml+'</td></tr>'+
+      '<tr><td class="name-cell">'+nameHtml+'</td>'+
       '<td class="num">'+h.tons+'t</td>'+
       '<td class="num">'+cr(h.ppt)+'</td>'+
       '<td class="num '+(good?'pos':'neg')+'">~'+cr(estPpt)+'</td>'+
       '<td><button onclick="sellHold('+i+')">Sell here</button></td></tr>';
   }).join('');
   document.getElementById('hold').innerHTML=
-    '<table><thead><tr><th>Cargo</th><th class="num">Tons</th><th class="num">Paid/t</th><th class="num">Est. sale/t here</th><th></th></tr></thead><tbody>'+rows+'</tbody></table>'+
+    '<table><thead><tr><th class="name-cell">Cargo</th><th class="num">Tons</th><th class="num">Paid/t</th><th class="num">Est. sale/t here</th><th></th></tr></thead><tbody>'+rows+'</tbody></table>'+
     '<div class="hint" style="margin-top:6px;">Green estimate = likely profit at this world. Actual price rolls when you sell.</div>';
 }
 function renderLog(){

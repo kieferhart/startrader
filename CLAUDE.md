@@ -198,6 +198,9 @@ on port 8731, serving the project root. Use `preview_start` then `preview_eval` 
 ## Conventions recap
 
 - Plain HTML/CSS/JS only; never add a build system. Respect the script load order.
+- **Cache busting:** asset URLs in `index.html` carry `?v=N`. Bump N on every css/js
+  change or phones serve stale assets for up to 10 minutes after a Pages deploy
+  (symptom: "tabs don't work" / unstyled layout right after a release).
 - Book every new cash flow; re-run the Node reconciliation check.
 - There is exactly one copy of the app (`index.html` + `css/` + `js/`) — do not
   create preview duplicates (this project had a two-copies drift problem once).

@@ -44,6 +44,7 @@
   .content{padding:12px; max-width:1100px; margin:0 auto;}
   .tabpage{display:none;}
   .tabpage.active{display:block;}
+  .namerow{display:none;}  /* mobile-only: good name/type on its own table line */
   @media(min-width:900px){
     #tab-trade.active{display:grid; grid-template-columns:minmax(0,1fr) 400px; gap:0 12px; align-items:start;}
     #tab-trade .span{grid-column:1/-1;}
@@ -63,6 +64,10 @@
     .modal{width:96%; max-height:92vh;}
     #market,#hold{overflow-x:auto;}
     .content{padding:8px;}
+    /* goods tables: name+type become their own full-width line */
+    .namerow{display:table-row;}
+    .namerow td{border-bottom:none; padding:9px 5px 1px;}
+    .name-cell,.hide-sm{display:none;}
   }
   .card{background:var(--panel); border:1px solid var(--grid); border-radius:6px; margin-bottom:12px;}
   .card h3{

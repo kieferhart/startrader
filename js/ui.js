@@ -179,6 +179,27 @@ function showShip(){
     '<p class="hint" style="margin-top:10px;">Running costs follow the Cepheus Engine: a 40-year mortgage, crew salaries, maintenance (0.1%/yr of the hull) and life support (Cr2,000 per stateroom), billed monthly. Miss too many runs and you fall behind the bank. The <b>Salvaged Hauler</b> is mortgage-free if you want a lower-stress game.</p>'+
     '<div style="margin-top:14px;text-align:right;"><button class="primary" onclick="closeModal()">Close</button></div>');
 }
+function showPeople(){
+  const cast=(G.cast||[]).slice().sort((a,b)=>Math.abs(shipRel(b))-Math.abs(shipRel(a)));
+  if(!cast.length){
+    openModal('<h2>PEOPLE</h2><p class="hint">No one of note yet. Events introduce named characters as you trade and travel — search away from port, walk the port, make jumps.</p>'+
+      '<div style="text-align:right;"><button class="primary" onclick="closeModal()">Close</button></div>');
+    return;
+  }
+  const crewNames=G.crew.map(c=>c.name);
+  const head='<tr><th>Person</th>'+crewNames.map(n=>'<th class="num" title="'+n+'">'+n.split(' ')[0]+'</th>').join('')+'<th class="num">Ship</th></tr>';
+  const cell=v=>'<td class="num '+(v>0?'pos':v<0?'neg':'muted')+'">'+(v==null?'—':(v>0?'+':'')+v)+'</td>';
+  const rows=cast.map(ch=>{
+    const sv=shipRel(ch);
+    return '<tr><td><b>'+ch.name+'</b><div class="hint">'+ch.role+' · met on '+ch.world+', day '+(ch.met+1)+'</div></td>'+
+      crewNames.map(n=>cell(ch.rels[n])).join('')+
+      '<td class="num '+(sv>0?'pos':sv<0?'neg':'muted')+'"><b>'+(sv>0?'+':'')+sv+'</b></td></tr>';
+  }).join('');
+  openModal('<h2>PEOPLE</h2>'+
+    '<p class="hint">Named characters your crew has dealt with. Scores run −100 (blood feud) to +100 (sworn friend); a dash means that crew member has never dealt with them. The <b>Ship</b> column is the average of the crew scores.</p>'+
+    '<div style="overflow-x:auto"><table><thead>'+head+'</thead><tbody>'+rows+'</tbody></table></div>'+
+    '<div style="margin-top:12px;text-align:right;"><button class="primary" onclick="closeModal()">Close</button></div>');
+}
 function showCrew(){
   const s=SHIPS[G.ship];
   const cards=G.crew.map(c=>{

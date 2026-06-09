@@ -113,6 +113,9 @@
   .modal .body{padding:18px;}
   .modal h2{font-size:18px; letter-spacing:2px; margin-bottom:10px; color:#dfe8f7;}
   .modal.evpop{border-color:#8a6ad0; box-shadow:0 0 50px #8a6ad044; max-width:480px;}
+  .flav{margin-top:9px; padding-top:7px; border-top:1px dashed #3a2f55;
+    color:#b9a7e0; font-style:italic; font-size:12px; line-height:1.55;}
+  .flav b{color:#d9c8ff; font-style:normal;}
   .evt{color:#c5a8ff; font-weight:600; font-size:11px; text-transform:uppercase; letter-spacing:1.5px;
     border-bottom:1px solid var(--grid); padding-bottom:8px;}
   .seg{display:flex; gap:4px; margin:8px 0;}

@@ -77,7 +77,188 @@ function pumpEvents(){
   EV_CHOICE=false; evShow(infoPopupHTML(e));
 }
 function evNext(){ EV_OPEN=false; if(EVQ.length)pumpEvents(); else evHide(); }
+
+/* ---------- Cast & flavor: named characters with relationship scores ----------
+   Every table entry keeps its mechanics; a flavor paragraph is composed from the
+   entry's archetype (ARCH) — 8 scene templates per archetype filled with a
+   persistent cast of named NPCs, the current world, crew names, goods. Template ×
+   name combinations give 20+ unique realizations per entry. Cast members carry a
+   relationship score per crew member (−100..100, clamp; drifts with interactions
+   and with engage/decline on decisions); ship score = crew average. */
+const CAST_FIRST=['Anneke','Brax','Cyrus','Dela','Ekaterin','Fenn','Goro','Hesta','Imre','Jola',
+ 'Kazimir','Liss','Mirelle','Nkoyo','Orin','Petra','Quint','Rolan','Saskia','Tobin',
+ 'Ulla','Vasil','Wendel','Xiomara','Yusuf','Zarina','Ardo','Branwen','Castor','Dagny'];
+const CAST_SUR=['Mbeki','Tarkalian','Voss','Ironsides','Qureshi','Belmonte','Hax','Okonkwo','Strand','Villalobos',
+ 'Greel','Ashworth','Nyx','Calloway','Drumlin','Esterhazy','Fonseca','Grieg','Halloway','Ixtab',
+ 'Jardine','Kessler','Locke','Madrigal','Nightingale','Oduya','Pryce','Quill','Rasmussen','Soto'];
+const CAST_ROLES={
+ official:['customs adjutant','port warden','imperial clerk','tariff assessor','harbour magistrate','licensing officer','quarantine marshal','dock registrar'],
+ merchant:['commodities broker','warehouse factor','freelance trader','guild merchant','auction agent','cargo wholesaler','market fixer','import jobber'],
+ underworld:['smuggler','fence','information broker','dock-gang lieutenant','freelance expediter','black-market courier','grey-cargo fixer','quiet financier'],
+ social:['minor noble','holovid celebrity','retired diplomat','society host','local magnate','off-world artist','charity patron','university don'],
+ dockhand:['cargo-master','rig mechanic','fuel-line chief','crane operator','stevedore boss','yard foreman','belt miner','launch tech'],
+ passenger:['commercial envoy','itinerant scholar','missionary','travelling physician','colonial administrator','touring musician','insurance assessor','pilgrim'],
+ danger:['corsair captain','protection-gang boss','bounty skip','mercenary sergeant','raider quartermaster','street enforcer','debt collector','pit fighter'],
+ drifter:['veteran scout','tramp captain','prospector','wandering engineer','ex-naval rating','frontier guide','salvage hand','retired courier'],
+};
+const CAST_DET={
+ official:['brass service pin','chipped Imperium seal','laminated rulebook','antique chronometer','ribbon of commendations','government-issue stylus','portrait of the Sector Duke','faded customs ledger'],
+ social:['reception at the governors villa','harvest festival','rooftop tea garden','officers club','night market','recital hall','observation lounge','founders day parade'],
+ dockhand:['mag-crane','fuel bowser','pallet loader','stuttering conveyor','half-stripped thruster','leaking coolant line','tangle of cargo netting','condemned loading arm'],
+};
+const FLAV={
+ official:[
+  '{N}, a {R} with a spotless uniform and a {D}, looks your paperwork over twice. {C} mutters that nothing about this port is ever simple.',
+  'The {R} assigned to your berth — {N} — recites regulation like scripture. Somewhere behind the counter, a {D} thumps down on a stack of forms.',
+  '{N} meets you at the ramp, datapad in hand and a {D} pinned to their lapel. The questions are polite, pointed, and entirely too well-informed.',
+  'Word is {N} has held this {R} posting for twenty years and never once smiled. Today is not the exception, and {C} stops joking halfway through.',
+  'A courier slips you a note: {N}, the {R} on duty, wants a word before anything moves. Their office smells of ink, dust and a {D}.',
+  '{N} initials each page without looking up. When they finally do, it is {C} they study, not the manifest.',
+  'The queue crawls. At its head, {N} — {R}, by the braid — weighs every traveller with the same tired, careful eyes.',
+  'Every port has its gatekeeper; on {W} it is {N}. The {R} taps a {D} against the desk while deciding precisely how difficult to be.'],
+ merchant:[
+  '{N}, a {R} working out of a stall that smells of machine oil and incense, beckons you closer. They claim the {G} practically sells itself.',
+  'Half the traders on {W} owe {N} a favour, or so the {R} says. The ledger they slide across the table looks suspiciously tidy.',
+  '{N} talks fast and pours faster, the local custom before any deal. {C} keeps one eye on the samples and one on the exits.',
+  'The {R} introduces themselves as {N}, purveyor of opportunities. Their warehouse holds more {G} than a world like {W} ought to need.',
+  'A printed card reads: {N} — {R}, fair rates, no questions. The handshake is firm; the smile has a price built in.',
+  '{N} circles the cargo like a gull over a galley. Every flaw is catalogued aloud, every virtue somehow overlooked.',
+  'Over lukewarm caf, {N} sketches numbers on a napkin and pushes it across. {C} reads it twice and raises an eyebrow.',
+  'They say {N} once sold sand to a desert colony. Watching the {R} work the room on {W}, you believe it.'],
+ underworld:[
+  '{N} finds you in the low light past the cargo gates, voice pitched under the dock noise. The {R} never quite shows both hands at once.',
+  'A whisper network on {W} all points to one name: {N}. The {R} agrees to meet only where the cameras do not.',
+  '{N} wears respectable clothes badly, like a costume. {C} recognises the type before a single word is said.',
+  'The {R} calling themselves {N} buys the table a round and waits for the bar to thin out. What follows is quiet, quick and deniable.',
+  'Everything about {N} is forgettable by design. Only the eyes give the {R} away — they price everything they touch.',
+  '{N} speaks in favours, never credits. On {W}, the {R} explains, paper trails have a way of becoming nooses.',
+  'You never see where {N} comes from; one moment the {R} is simply there, at your elbow, smiling. {C} nearly jumps out of an airlock.',
+  'The {R} known as {N} keeps a list of who owes whom on this world. Tonight, your name enters the margin.'],
+ social:[
+  '{N} — {R}, and apparently famous on {W} — greets your crew like old friends. The invitation that follows is gilt-edged and impossible to refuse politely.',
+  'At the {D}, {N} holds court with effortless charm. The {R} steers the conversation to off-world news, and to you.',
+  'Laughter carries across the {D}; at its centre stands {N}. {C} is drawn in before anyone can object.',
+  '{N} insists that no visitor to {W} should miss the {D}. The {R} talks the whole way there, and somehow you do not mind.',
+  'Introductions are made: {N}, {R}, lately of the capital. Their interest in a tramp-trader crew seems genuine, which is itself suspicious.',
+  'The {R} sends a handwritten card to your berth — {N} requests the pleasure. On {W}, you learn, refusing is its own statement.',
+  '{N} has the easy warmth of someone who has never carried their own luggage. Still, the {R} listens more than they speak, and remembers everything.',
+  'By the second drink {N} is telling stories that should probably stay on {W}. {C} trades one back, only slightly embellished.'],
+ dockhand:[
+  '{N}, a {R} with grease to the elbows, flags you down between container stacks. The {D} behind them has clearly lost the argument.',
+  'The dock crew defers to {N} without being asked. The {R} sizes up your ship the way a farrier sizes up a horse.',
+  '{N} talks over the howl of a {D}, all shorthand and hand signals. {C} catches about half of it and nods anyway.',
+  'Every port runs on someone like {N}. The {R} knows which cranes stick, which inspectors nap, and which berths flood.',
+  'A shift whistle blows and {N} appears at your ramp, thermos in hand. The {R} trades gossip for caf, straight across.',
+  '{N} has opinions about your landing gear and shares them freely. Underneath the ribbing, the {R} is already reaching for tools.',
+  'Between loads, {N} sketches the layout of the yard on a crate lid. The {R} marks two spots: trouble, and worse.',
+  'The {R} called {N} has worked this gantry since before your ship was laid down. Nothing moves on this dock unnoticed.'],
+ passenger:[
+  'Among the passengers is {N}, travelling as a {R}, whose luggage outweighs its owner. They take meals alone and notice everyone who notices them.',
+  '{N} booked passage at the last minute, paying in crisp notes. The {R} asks {C} a few too many questions about the route.',
+  'The {R} in cabin two — {N} — keeps the same hours as the night watch. Their door is always just closing as you pass.',
+  '{N} is charming at dinner and unreadable after it. {C} cannot decide if the {R} is running from something or toward it.',
+  'Halfway through the week {N} finally opens up over cards. The story the {R} tells has a hole in it big enough to fly the ship through.',
+  '{N} spends the jump in the lounge, watching the grey nothing outside. Whatever a {R} usually carries, they carry more of it.',
+  'The manifest lists {N}, {R}, one bag. The bag hums faintly, and no one has worked up the nerve to ask.',
+  'Of all the berths on all the ships, {N} chose yours. The {R} says it was the price; their eyes say otherwise.'],
+ danger:[
+  'The name {N} surfaces in every warning broadcast this month. When the {R} finally appears, it is exactly as advertised.',
+  '{N} does the talking while the muscle stays in shadow. The {R} has the relaxed patience of someone who has done this many times.',
+  'There is a bounty sheet somewhere with the face of {N} on it. {C} remembers it half a second too late.',
+  'The {R} who steps forward gives the name {N}, daring anyone to react. Every exit suddenly feels further away.',
+  '{N} smiles the way a knife catches light. Whatever the {R} wants, the asking is a formality.',
+  'Static clears and the voice introduces itself as {N}. The {R} lists your hull number, your cargo, and your options, in that order.',
+  'Local toughs answer to {N}, and {N} answers to no one on {W}. The {R} collects what they are owed, real or imagined.',
+  'You have heard {N} described as reasonable, for a {R}. You suspect whoever said so was never on the wrong side of the ledger.'],
+ drifter:[
+  '{N} claims to have crossed the sector twice with nothing but a toolkit and good manners. The {R} has the scars and the stories to match.',
+  'In the corner of the lounge sits {N}, nursing the same drink for hours. The {R} knows your next port better than you do.',
+  '{N} introduces themselves with a firm handshake and a job in mind. Retired, says the {R}; the posture says otherwise.',
+  'The {R} called {N} drifts from table to table, leaving laughter behind. By closing time they are at yours.',
+  '{N} carries a battered case they never open and never leave. Ask the {R} about it and the subject changes, smooth as vacuum.',
+  'Somewhere between anecdotes, {N} mentions exactly the thing you needed to hear. The {R} watches your reaction with mild, knowing amusement.',
+  '{N} has been on {W} nine days and already knows everyone worth knowing. Some people simply travel like that, and the {R} is one of them.',
+  'The {R} signs the guest ledger as {N}, no homeworld given. The handwriting is beautiful and the name is almost certainly borrowed.'],
+ crew:[
+  'It starts, as these things do, over nothing — a tool returned dirty, a watch traded late. By the time it reaches you, {C} and {C2} are not speaking.',
+  '{C} swears it was handled by the book. {C2} has a different book, and the galley goes very quiet whenever both are in it.',
+  'You find {C} re-reading the same gauge for the third time. Behind the professionalism, something is clearly grinding.',
+  'The ship is small and the jump is long. Whatever passed between {C} and {C2} in the hold, it is filling every corridor now.',
+  '{C} comes to you first, which says something. The story is reasonable, which says something else.',
+  'Half the crew sides with {C}, the other half with {C2}, and the ship runs on the thin civility in between.',
+  'It is nothing anyone says aloud; it is the pauses. {C} has stopped humming on watch, and the silence is louder.',
+  'A week in jump strips everyone down to habit, and the habits of {C} are wearing grooves in everyone else.'],
+ shipboard:[
+  '{C} is elbow-deep in the access panel before the alarm finishes sounding. The diagnosis arrives in language unsuitable for the log.',
+  'The fault announces itself at 0300 ship time. {C} arrives in boots and underwear, toolkit first.',
+  '{C} taps the gauge, frowns, taps it again. Aboard a small ship, that frown travels faster than any klaxon.',
+  'It is the smell that gives it away — hot insulation, somewhere aft. {C} and {C2} trade one look and start running.',
+  'The checklist exists for exactly this. {C} runs it twice anyway, voice flat, hands steady.',
+  '{C2} holds the light while {C} works, and the whole crew finds reasons to pass the corridor. Nobody asks the question out loud.',
+  'Spare parts have a way of being the wrong spare parts. {C} improvises, which is either comforting or terrifying, depending on the day.',
+  'The ship complains in a new key, and {C} hears it before any sensor does. Old hands and old hulls keep their own counsel.'],
+};
+// archetype per table entry — mechanics untouched, flavor matched to the scene
+const ARCH={
+ world:{11:'underworld',12:'social',13:'drifter',14:'official',15:'official',16:'merchant',
+  21:'social',22:'drifter',23:'drifter',24:'drifter',25:'merchant',26:'social',
+  31:'merchant',32:'social',33:'drifter',34:'official',35:'drifter',36:'dockhand',
+  41:'merchant',42:'merchant',43:'danger',44:'underworld',45:'underworld',46:'dockhand',
+  51:'social',52:'official',53:'merchant',54:'merchant',55:'drifter',56:'social',
+  61:'dockhand',62:'shipboard',63:'underworld',64:'merchant',65:'official',66:'drifter'},
+ port:{11:'dockhand',12:'dockhand',13:'crew',14:'official',15:'official',16:'official',
+  21:'drifter',22:'social',23:'underworld',24:'dockhand',25:'social',26:'official',
+  31:'dockhand',32:'social',33:'social',34:'drifter',35:'merchant',36:'official',
+  41:'underworld',42:'dockhand',43:'dockhand',44:'underworld',45:'merchant',46:'official'},
+ jump:{11:'danger',12:'crew',13:'passenger',14:'shipboard',15:'shipboard',16:'passenger',
+  21:'official',22:'crew',23:'shipboard',24:'passenger',25:'shipboard',26:'shipboard',
+  31:'shipboard',32:'passenger',33:'shipboard',34:'shipboard',35:'passenger',36:'passenger',
+  41:'shipboard',42:'shipboard',43:'shipboard',44:'drifter',45:'passenger',46:'passenger',
+  51:'official',52:'passenger',53:'passenger',54:'passenger',55:'crew',56:'passenger',
+  61:'crew',62:'crew',63:'crew',64:'crew',65:'passenger',66:'passenger'},
+};
+const EV_TBL={'World Encounter':'world','Port Event':'port','Jump Event':'jump'};
+
+function clampRel(v){ return Math.max(-100,Math.min(100,Math.round(v))); }
+function meetCast(role){
+  if(!G.cast)G.cast=[];
+  if(G.cast.length&&d6()<=2)return G.cast[R(G.cast.length)-1];   // recurring faces
+  let nm,guard=0;
+  do{ nm=CAST_FIRST[R(CAST_FIRST.length)-1]+' '+CAST_SUR[R(CAST_SUR.length)-1]; guard++; }
+  while(guard<60&&(G.cast.some(c=>c.name===nm)||(G.crew||[]).some(c=>c.name===nm)));
+  const ch={id:++G.castSeq, name:nm, role:role||'traveller', world:here().name, met:G.day, rels:{}};
+  G.cast.push(ch);
+  if(G.cast.length>40)G.cast.shift();    // the sector remembers only so many faces
+  return ch;
+}
+function bumpRel(ch,crewName,delta){ if(!ch||!ch.rels||!crewName)return; ch.rels[crewName]=clampRel((ch.rels[crewName]||0)+delta); }
+function shipRel(ch){ const v=Object.values((ch&&ch.rels)||{}); return v.length?Math.round(v.reduce((a,b)=>a+b,0)/v.length):0; }
+function castById(id){ return (G.cast||[]).find(c=>c.id===id); }
+function eventFlavor(table,r){
+  const a=(ARCH[table]||{})[r]; if(!a||!G||!G.crew||!G.crew.length)return '';
+  if(G.castSeq==null)G.castSeq=0;
+  const crew=G.crew[R(G.crew.length)-1];
+  let crew2=crew;
+  if(G.crew.length>1)while(crew2===crew)crew2=G.crew[R(G.crew.length)-1];
+  let s=FLAV[a][R(FLAV[a].length)-1];
+  G._lastCast=null;
+  if(a==='crew'||a==='shipboard'){
+    s=s.split('{C2}').join('<b>'+crew2.name+'</b>').split('{C}').join('<b>'+crew.name+'</b>');
+  } else {
+    const ch=meetCast(CAST_ROLES[a][R(CAST_ROLES[a].length)-1]);
+    bumpRel(ch,crew.name,(_2d6()-7)*4);          // how this brush went: −20..+20
+    G._lastCast=ch.id;
+    const det=CAST_DET[a]?CAST_DET[a][R(CAST_DET[a].length)-1]:'ledger';
+    const goods=Object.values(TRADE); const g=goods[R(goods.length)-1];
+    s=s.split('{N}').join('<b>'+ch.name+'</b>').split('{R}').join(ch.role)
+      .split('{C}').join('<b>'+crew.name+'</b>').split('{W}').join(here().name)
+      .split('{D}').join(det).split('{G}').join(goodVariant(g.id));
+  }
+  return '<div class="flav">'+s+'</div>';
+}
+
 function showEvent(title,roll,text){
+  text+=eventFlavor(EV_TBL[title],roll);
   const a=document.getElementById('event-area');
   a.innerHTML='<div class="event"><div class="t">'+title+' · roll '+roll+'</div>'+text+'</div>'+ (a?a.innerHTML:'');
   EVQ.push({title,roll,text}); pumpEvents();
@@ -100,8 +281,11 @@ function addSeizedLot(frac,hot){            // cheap lot dumped on the market by
 /* --- player decisions: a pending choice survives save/load; starting any
    other major action (search / jump / port walk / contacts) lets it pass --- */
 function offerChoice(kind,title,roll,text,data,options){
+  text+=eventFlavor(EV_TBL[title],roll);
+  data=data||{};
+  if(G._lastCast)data._cast=G._lastCast;        // remember who this decision involves
   G.choiceSeq=(G.choiceSeq||0)+1;
-  G.pendingChoice={kind,title,roll,text,data:data||{},options,uid:'ch'+G.choiceSeq};
+  G.pendingChoice={kind,title,roll,text,data,options,uid:'ch'+G.choiceSeq};
   save();
   EVQ.push({choice:true}); pumpEvents();
   renderAll();
@@ -115,6 +299,11 @@ function resolveChoice(k){
   const pc=G.pendingChoice; if(!pc)return;
   G.pendingChoice=null;
   const out=(CHOICES[pc.kind]||function(){return '';})(k,pc.data);
+  if(pc.data&&pc.data._cast){                    // engaging warms ties; brushing off cools them
+    const ch=castById(pc.data._cast);
+    const declined=['no','pass','walk','steer','letgo','wait','refuse'].indexOf(k)>=0;
+    if(ch&&G.crew&&G.crew.length)bumpRel(ch,G.crew[R(G.crew.length)-1].name,declined?-(3+d6()):(3+d6()));
+  }
   const a=document.getElementById('event-area');
   a.innerHTML='<div class="event"><div class="t">'+pc.title+' · resolved</div>'+out+'</div>'+String(a.innerHTML);
   EV_CHOICE=false;

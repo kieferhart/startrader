@@ -44,7 +44,7 @@ const SAVE='starTraderSave_v1';
 function save(){ try{localStorage.setItem(SAVE,JSON.stringify(G));}catch(e){} }
 function load(){ try{const s=localStorage.getItem(SAVE); if(!s)return null; const g=JSON.parse(s);
   if(g&&g.worlds){ if(!g.books)g.books=emptyBooks(); if(!g.crew||!g.crew.length)g.crew=genCrew(g.ship);
-    if(!g.mods)g.mods=emptyMods(); if(!g.contacts)g.contacts=[]; }
+    if(!g.mods)g.mods=emptyMods(); if(!g.contacts)g.contacts=[]; if(!g.tab)g.tab='trade'; }
   return g; }catch(e){return null;} }
 
 function newGame(shipKey){
@@ -63,7 +63,7 @@ function newGame(shipKey){
     crew:genCrew(shipKey), books:emptyBooks(),
     mods:emptyMods(), pendingChoice:null, choiceSeq:0,
     courier:null, smuggleJob:null, passenger:null,
-    log:[]
+    tab:'trade', log:[]
   };
   logEntry('Game begins at '+start.name+' aboard the '+ship.name+'. Starting capital '+cr(250000)+'.','start');
   generateMarket('port');

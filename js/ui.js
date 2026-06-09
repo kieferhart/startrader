@@ -1,5 +1,16 @@
 /* ---------- Rendering ---------- */
-function renderAll(){ renderTop(); renderMap(); renderWorlds(); renderCurrentWorld(); renderMarket(); renderHold(); renderLog(); renderJumpBtn(); renderPendingChoice(); }
+function renderAll(){ renderTabs(); renderTop(); renderMap(); renderWorlds(); renderCurrentWorld(); renderMarket(); renderHold(); renderLog(); renderJumpBtn(); renderPendingChoice(); }
+
+/* ---------- Tabs (Trade / Star Map / Bridge) ---------- */
+function switchTab(t){ G.tab=t; save(); renderTabs(); }
+function renderTabs(){
+  const t=(G&&G.tab)||'trade';
+  ['trade','map','bridge'].forEach(k=>{
+    const p=document.getElementById('tab-'+k), b=document.getElementById('tabbtn-'+k);
+    if(p)p.className='tabpage'+(k===t?' active':'');
+    if(b)b.className=(k===t?'on':'');
+  });
+}
 
 /* ---------- Interactive star map (SVG hex grid, odd-q to match hexDist) ---------- */
 const SP_COLOR={A:'#4ea1ff',B:'#7fc4ff',C:'#cdd6e4',D:'#ffcf6b',E:'#c79a55',X:'#ff6b6b'};
@@ -129,13 +140,18 @@ function renderLog(){
   }).join('');
 }
 function renderJumpBtn(){
-  const b=document.getElementById('jumpbtn'); const info=document.getElementById('jump-info');
-  const dn=document.getElementById('dest-name');
-  if(G.dest==null||G.dest===G.here){ b.disabled=true; dn.textContent='none'; info.textContent=''; return; }
-  const to=world(G.dest), d=hexDist(here(),to), jr=SHIPS[G.ship].jump;
-  dn.textContent=to.name+' ('+uwpString(to.u)+')';
-  if(d>jr){ b.disabled=true; info.innerHTML='<span class="neg">'+d+'pc — beyond J'+jr+'</span>'; }
-  else { b.disabled=false; info.textContent=d+'pc · fuel '+cr(SHIPS[G.ship].perJump*d)+' · 1 week'; }
+  // two synchronized jump-control sets: Bridge tab and Star Map tab
+  let dis=true, dn='none', info='';
+  if(G.dest!=null&&G.dest!==G.here){
+    const to=world(G.dest), d=hexDist(here(),to), jr=SHIPS[G.ship].jump;
+    dn=to.name+' ('+uwpString(to.u)+')';
+    if(d>jr){ info='<span class="neg">'+d+'pc — beyond J'+jr+'</span>'; }
+    else { dis=false; info=d+'pc · fuel '+cr(SHIPS[G.ship].perJump*d)+' · 1 week'; }
+  }
+  [['jumpbtn','jump-info','dest-name'],['jumpbtn-m','jump-info-m','dest-name-m']].forEach(ids=>{
+    const b=document.getElementById(ids[0]), i=document.getElementById(ids[1]), n=document.getElementById(ids[2]);
+    if(b)b.disabled=dis; if(i)i.innerHTML=info; if(n)n.textContent=dn;
+  });
 }
 
 /* ---------- Modals ---------- */
@@ -230,7 +246,7 @@ function showHelp(){
    '<ol style="padding-left:18px;line-height:1.7">'+
    '<li><b>Search for cargo</b> at the current world. <i>At the starport</i> is quick; <i>away from port</i> is cheaper (and opens the black market) but takes longer and risks an encounter.</li>'+
    '<li><b>Buy</b> goods in the Market. Green prices are below base value — bargains. You’re limited by credits and hold space.</li>'+
-   '<li><b>Pick a destination</b> in the Subsector list (left). A world that <i>wants</i> your cargo pays more — its trade codes drive the resale price.</li>'+
+   '<li><b>Pick a destination</b> on the <b>Star Map</b> tab — tap a world, then Jump right from the map. A world that <i>wants</i> your cargo pays more — its trade codes drive the resale price.</li>'+
    '<li><b>Jump.</b> Costs fuel and one week; a Jump Event fires. On arrival, <b>Sell</b> from your hold.</li>'+
    '<li>Repeat. Watch the <b>Ledger</b> on the right — it’s your captain’s diary.</li>'+
    '</ol>'+

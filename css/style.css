@@ -31,12 +31,39 @@
   .stat .lbl{font-size:10px; color:var(--dim); text-transform:uppercase; letter-spacing:1px;}
   .stat .val{font-size:15px; font-weight:600;}
   .spacer{flex:1;}
-  .layout{
-    display:grid; grid-template-columns:260px 1fr 340px; gap:0;
-    height:calc(100vh - 53px);
+  .tabs{
+    display:flex; gap:0; background:var(--panel2); border-bottom:1px solid var(--grid);
+    padding:0 8px; position:sticky; top:0; z-index:5;
   }
-  .col{overflow-y:auto; padding:12px; border-right:1px solid var(--grid);}
-  .col:last-child{border-right:none;}
+  .tabs button{
+    background:none; border:none; border-radius:0; border-bottom:2px solid transparent;
+    color:var(--dim); padding:11px 18px; font-size:12px; text-transform:uppercase; letter-spacing:1.5px;
+  }
+  .tabs button.on{color:var(--accent); border-bottom-color:var(--accent); background:none;}
+  .tabs button:hover:not(.on){background:#161e30; border-color:transparent; border-bottom-color:#2c3a55;}
+  .content{padding:12px; max-width:1100px; margin:0 auto;}
+  .tabpage{display:none;}
+  .tabpage.active{display:block;}
+  @media(min-width:900px){
+    #tab-trade.active{display:grid; grid-template-columns:minmax(0,1fr) 400px; gap:0 12px; align-items:start;}
+    #tab-trade .span{grid-column:1/-1;}
+    #tab-map.active{display:grid; grid-template-columns:440px minmax(0,1fr); gap:0 12px; align-items:start;}
+    #tab-bridge.active{display:grid; grid-template-columns:420px minmax(0,1fr); gap:0 12px; align-items:start;}
+  }
+  @media(max-width:700px){
+    body{font-size:13.5px;}
+    .topbar{gap:8px 14px; padding:8px 10px;}
+    .topbar h1{font-size:14px; letter-spacing:1px;}
+    .stat .val{font-size:13px;}
+    .stat .lbl{font-size:9px;}
+    button{padding:9px 13px; font-size:13px;}
+    .tabs button{flex:1; padding:12px 4px; font-size:11px; letter-spacing:1px;}
+    th,td{padding:6px 5px;}
+    input[type=number]{width:56px; font-size:14px; padding:6px 5px;}
+    .modal{width:96%; max-height:92vh;}
+    #market,#hold{overflow-x:auto;}
+    .content{padding:8px;}
+  }
   .card{background:var(--panel); border:1px solid var(--grid); border-radius:6px; margin-bottom:12px;}
   .card h3{
     font-size:11px; text-transform:uppercase; letter-spacing:1.5px; color:var(--head);

@@ -49,10 +49,15 @@ function load(){ try{const s=localStorage.getItem(SAVE); if(!s)return null; cons
 
 function newGame(shipKey){
   evReset();
-  const worlds=genSubsector();
-  // start on a viable port: A/B/C with pop>=5
-  let start=worlds.filter(w=>'ABC'.includes(w.u.sp)&&w.u.pop>=5);
-  start = (start.length?start:worlds)[0];
+  // Guarantee: the start world has >=1 world within the ship's jump range and
+  // can chain (leg by leg) to >=5 more — i.e. it sits in a jump-connected
+  // cluster of >=6 worlds. Retry generation, then stitch as a last resort.
+  const jr=SHIPS[shipKey].jump, NEED=6;
+  let worlds=null, si=-1;
+  for(let t=0;t<30&&si<0;t++){ worlds=genSubsector(); si=bigComponentStart(worlds,jr,NEED); }
+  if(si<0){ ensureCluster(worlds,jr,NEED); si=bigComponentStart(worlds,jr,NEED); }
+  if(si<0)si=0;   // unreachable in practice; keeps newGame total
+  const start=worlds[si];
   const ship=SHIPS[shipKey];
   G={
     ship:shipKey, ssname:SSNAMES[R(SSNAMES.length)-1],

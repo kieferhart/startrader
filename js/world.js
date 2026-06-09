@@ -91,3 +91,58 @@ function shuffle(a){for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random
 function cube(col,row){const x=col,z=row-(col-(col&1))/2,y=-x-z;return{x,y,z};}
 function hexDist(a,b){const A=cube(a.col,a.row),B=cube(b.col,b.row);return Math.max(Math.abs(A.x-B.x),Math.abs(A.y-B.y),Math.abs(A.z-B.z));}
 
+/* ---------- Jump connectivity (start-world guarantee) ---------- */
+// Label each world with its connected component under "reachable in one
+// jump of rating jr" adjacency. A component of size >=6 means a member has
+// >=1 world in direct range and >=5 it can chain to.
+function jumpComponents(worlds,jr){
+  const comp=new Array(worlds.length).fill(-1); let c=0;
+  for(let i=0;i<worlds.length;i++){
+    if(comp[i]>=0)continue;
+    const stack=[i]; comp[i]=c;
+    while(stack.length){
+      const a=stack.pop();
+      for(let j=0;j<worlds.length;j++)
+        if(comp[j]<0&&hexDist(worlds[a],worlds[j])<=jr){ comp[j]=c; stack.push(j); }
+    }
+    c++;
+  }
+  return comp;
+}
+// Index of a good start world inside a component of >=need worlds:
+// prefer an A/B/C port with pop>=5, else any member. -1 if no such component.
+function bigComponentStart(worlds,jr,need){
+  const comp=jumpComponents(worlds,jr);
+  const sizes={}; comp.forEach(c=>sizes[c]=(sizes[c]||0)+1);
+  const ok=i=>sizes[comp[i]]>=need;
+  let pick=-1;
+  worlds.forEach((w,i)=>{ if(pick<0&&ok(i)&&'ABC'.includes(w.u.sp)&&w.u.pop>=5)pick=i; });
+  if(pick<0)worlds.forEach((w,i)=>{ if(pick<0&&ok(i))pick=i; });
+  return pick;
+}
+// Deterministic fallback: relocate worlds from other components into empty
+// hexes within jr of the largest cluster until it holds >=need worlds.
+function ensureCluster(worlds,jr,need){
+  for(let guard=0;guard<40;guard++){
+    const comp=jumpComponents(worlds,jr);
+    const sizes={}; comp.forEach(c=>sizes[c]=(sizes[c]||0)+1);
+    const bestC=+Object.keys(sizes).reduce((a,b)=>sizes[a]>=sizes[b]?a:b);
+    if(sizes[bestC]>=need)return;
+    const di=worlds.findIndex((w,i)=>comp[i]!==bestC);
+    if(di<0)return;
+    const members=worlds.filter((w,i)=>comp[i]===bestC);
+    let spot=null;
+    for(const m of members){
+      for(let col=Math.max(1,m.col-jr);col<=Math.min(8,m.col+jr)&&!spot;col++)
+        for(let row=Math.max(1,m.row-jr);row<=Math.min(10,m.row+jr)&&!spot;row++){
+          if(worlds.some(w=>w.col===col&&w.row===row))continue;
+          const d=hexDist({col,row},m);
+          if(d>0&&d<=jr)spot={col,row};
+        }
+      if(spot)break;
+    }
+    if(!spot)return;
+    worlds[di].col=spot.col; worlds[di].row=spot.row;
+  }
+}
+

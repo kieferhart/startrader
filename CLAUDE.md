@@ -112,6 +112,17 @@ modals), `js/main.js` (boot), `css/style.css`, `index.html`.
   - **Deferred jobs** — `G.courier` / `G.smuggleJob` / `G.passenger` are set by choices
     and settled by `resolveArrivalJobs()` after each jump (pay → `otherIncome`, busts →
     `fines`).
+  - **Cast & flavor** (`js/events.js`) — every event entry maps to an archetype
+    (`ARCH[table][roll]`; 10 archetypes, 8 scene templates each in `FLAV`, slots
+    {N}{R}{C}{C2}{W}{D}{G}). `eventFlavor()` is injected centrally in `showEvent` /
+    `offerChoice` via `EV_TBL` title lookup — never per call site. Non-crew archetypes
+    draw a character from the persistent cast (`G.cast`, capped 40, `meetCast()` reuses
+    a known face 2-in-6). Cast members hold per-crew relationship scores −100..100
+    (`ch.rels[crewName]`, `bumpRel` clamps; drift on each encounter, ±(3+d6) on
+    engage/decline via `pendingChoice.data._cast`); `shipRel()` = crew average.
+    Scores are viewable (topbar **People** → `showPeople()`) but deliberately have NO
+    mechanical effect yet. A test asserts ≥20 unique flavor realizations per entry —
+    preserve that bound if you edit templates or pools.
   - Cargo/market flags: `quality` (+1 on the sale roll, shown as a tag, carried from
     market offer into the hold) and `hot` (hidden; stolen goods — 2-in-6 chance of a
     25% fine when sold).

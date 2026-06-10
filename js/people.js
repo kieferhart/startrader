@@ -368,6 +368,19 @@ function npcTick(){
 
 /* ---------- Choice handlers for the new decisions ---------- */
 Object.assign(CHOICES,{
+ bountyHunters(k,d){
+   const b=G.bills;
+   if(k==='pay'){ if(G.credits<b.mortgage)return 'You open the ledger and they laugh. You cannot cover it — pick again next time they corner you.';
+     const amt=b.mortgage; G.credits-=amt; book('mortgage',-amt); b.mortgage=0; b.mortM=0;
+     logEntry('Paid the recovery agents in full — '+cr(amt)+'.','money',-amt);
+     return 'Credits transfer. The writ is stamped void and they walk away without a backward glance. The mortgage arrears are cleared.'; }
+   if(k==='fight'){ const c=skillCheck(9,'Gunner','Tactics');
+     if(c.ok){ logEntry('Drove off the recovery agents — this time.','muted');
+       return 'Your crew makes it expensive enough that they reconsider. They will be back with more friends — the debt still stands.'+c.txt; }
+     const rep=2000*d6(); pay(rep,'incidentals','Firefight with recovery agents — damage');
+     return 'It goes badly. '+cr(rep)+' in damage'+hurtCaptain(d6(),'the recovery-agent firefight')+' The debt still stands.'+c.txt; }
+   advanceTime(2);
+   return 'You buy two days dodging traffic control and burn out-system. The writ does not expire.'; },
  crewRaise(k,d){ const c=crewByName(d.name); if(!c)return 'They have already left the ship.';
    if(k==='yes'){ c.salary=(c.salary||0)+d.amt; bumpCrew(c,'@captain',12+d6());
      return 'You shake on it. '+c.name+' walks taller for a week. (salaries +'+cr(d.amt)+'/mo)'; }
@@ -553,6 +566,33 @@ function peopleOnJump(){             // in transit
     G.sabotage=null; }
   crewTick('jump');
 }
+function bankTrouble(){              // mortgage arrears bite on arrival
+  const b=G.bills; if(!b||!(SHIPS[G.ship].mortgage>0))return;
+  const w=here();
+  // 2+ months behind: high-law ports enforce the bank's lien
+  if(b.mortM>=2&&w.u.law>=7&&G.hold.length){
+    let owed=b.mortgage, seized=0;
+    while(owed>0&&G.hold.length){ const h=G.hold[0]; const t=Math.min(h.tons,Math.ceil(owed/h.ppt));
+      book('spoilage',-h.ppt*t); seized+=h.ppt*t; owed-=h.ppt*t; h.tons-=t; if(h.tons<=0)G.hold.shift(); }
+    b.mortgage=Math.max(0,b.mortgage-seized);
+    if(b.mortgage<=0)b.mortM=0;
+    logEntry('Port authority impounded cargo against the bank lien — '+cr(seized)+' credited to arrears.','muted');
+    showEvent('Impound','—','Customs meets you at the berth with a bank lien and a flatbed. Cargo worth <b>'+cr(seized)+'</b> is impounded against the mortgage arrears.'+
+      (b.mortgage>0?' You still owe <b>'+cr(b.mortgage)+'</b>.':' The arrears are cleared — the hard way.'));
+    return;
+  }
+  // 3+ months: the note went to a recovery agency
+  if(b.mortM>=3&&d6()<=4){
+    const ch=meetCast(CAST_ROLES.danger[R(CAST_ROLES.danger.length)-1],true); ch.world=w.name;
+    offerChoice('bountyHunters','Recovery Agents',0,
+      '<b>'+ch.name+'</b> and two associates are waiting at the bottom of the ramp with a recovery writ for this hull. '+
+      '"'+cr(b.mortgage)+' clears it, captain. Or we take the ship and you keep your teeth. Your pick."',
+      {_cast:ch.id,name:ch.name},
+      [{k:'pay',label:'Pay the arrears ('+cr(b.mortgage)+')'},
+       {k:'fight',label:'Fight them off (Gunner/Tactics 9+)'},
+       {k:'run',label:'Lift off hot (2 days, they will be back)'}]);
+  }
+}
 function peopleOnArrival(){
   if(!G.visited)G.visited=[];
   if(G.visited.indexOf(G.here)<0)G.visited.push(G.here);
@@ -563,6 +603,7 @@ function peopleOnArrival(){
       showEvent('Customs','—','They came straight to the right deck plate. '+lost+' seized, fined '+cr(f)+'. Someone sold you out.'); }
     else showEvent('Customs','—','A full customs team turns the ship over and finds nothing. They seem almost disappointed. Someone sold you out anyway.'); }
   npcTick();
+  bankTrouble();
 }
 
 /* ---------- Health (Cepheus-style: physical UPP = hit capacity) ---------- */

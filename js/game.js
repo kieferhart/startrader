@@ -47,6 +47,7 @@ function load(){ try{const s=localStorage.getItem(SAVE); if(!s)return null; cons
   if(g&&g.worlds){
     if(!SHIPS[g.ship])g.ship=SHIP_ALIAS[g.ship]||'trader';        // legacy ship keys
     if(g.fuel==null){ g.fuel=SHIPS[g.ship].fuelCap; g.fuelUnrefined=false; }
+    if(!g.bills)g.bills={wages:0,wagesM:0,mortgage:0,mortM:0,upkeep:0,upkeepM:0};
     g.worlds.forEach(w=>{ if(w.gg==null)w.gg=_2d6()>=5; });
     if(!g.books)g.books=emptyBooks(); if(!g.crew||!g.crew.length)g.crew=genCrew(g.ship);
     if(!g.mods)g.mods=emptyMods(); if(!g.contacts)g.contacts=[]; if(!g.tab)g.tab='trade';
@@ -77,6 +78,7 @@ function newGame(shipKey){
     credits:250000, startCredits:250000,
     day:0, lastMonth:0,
     fuel:SHIPS[shipKey].fuelCap, fuelUnrefined:false,
+    bills:{wages:0,wagesM:0,mortgage:0,mortM:0,upkeep:0,upkeepM:0},
     hold:[], market:null, marketSrc:'', contacts:[],
     crew:genCrew(shipKey), books:emptyBooks(),
     mods:emptyMods(), pendingChoice:null, choiceSeq:0,
@@ -189,12 +191,31 @@ function advanceTime(days){
   if(month>G.lastMonth){
     const n=month-G.lastMonth; G.lastMonth=month;
     const s=SHIPS[G.ship];
-    const mort=(s.mortgage||0)*n, sal=crewSalaries()*n, over=monthlyOverhead()*n, bill=mort+sal+over;
-    if(bill>0){ G.credits-=bill; book('mortgage',-mort); book('salaries',-sal); book('overhead',-over);
-      // crew bank their pay (abstracted: a tenth reaches the sock under the bunk)
-      (G.crew||[]).forEach(c=>{ c.wallet=(c.wallet||0)+Math.round((c.salary||0)*0.1)*n; });
-      const parts=[]; if(mort)parts.push('mortgage'); if(sal)parts.push('salaries'); if(over)parts.push('maintenance & life support');
-      logEntry('Monthly bill — '+parts.join(' + ')+' '+cr(-bill)+(G.credits<0?' ⚠ overdrawn — the bank is watching':''),'money',-bill); }
+    if(!G.bills)G.bills={wages:0,wagesM:0,mortgage:0,mortM:0,upkeep:0,upkeepM:0};
+    const b=G.bills;
+    // anything still unpaid when a new statement posts is officially LATE
+    if(b.wages>0)b.wagesM+=n;
+    if(b.mortgage>0)b.mortM+=n;
+    if(b.upkeep>0)b.upkeepM+=n;
+    let fee=0;
+    if(b.mortM>=1&&b.mortgage>0){ fee=Math.round(b.mortgage*0.1); b.mortgage+=fee; }  // late fee on the overdue balance
+    b.wages+=crewSalaries()*n;
+    b.mortgage+=(s.mortgage||0)*n;
+    b.upkeep+=monthlyOverhead()*n;
+    // unpaid wages: every crew member takes it personally
+    if(b.wagesM>=1&&crewSalaries()>0){
+      (G.crew||[]).forEach(c=>bumpCrew(c,'@captain',-(8+d6())));
+      logEntry('Wages are '+b.wagesM+' month'+(b.wagesM>1?'s':'')+' in arrears. The mess hall has gone quiet when you walk in.','muted');
+    }
+    const warn=[];
+    if(fee)warn.push('mortgage late fee '+cr(fee)+' added');
+    if(b.mortM>=2)warn.push('the bank has filed liens — high-law ports WILL impound cargo');
+    if(b.mortM>=3)warn.push('the note has been sold to a recovery agency — expect bounty hunters');
+    logEntry('Monthly statements posted — wages '+cr(b.wages)+', mortgage '+cr(b.mortgage)+', upkeep '+cr(b.upkeep)+
+      '. Pay them in Commitments.'+(warn.length?' ⚠ '+warn.join('; ')+'.':''),'muted');
+    showEvent('Accounts','—','Monthly statements posted. <b>Wages '+cr(b.wages)+'</b> · <b>Mortgage '+cr(b.mortgage)+'</b> · <b>Upkeep '+cr(b.upkeep)+'</b>. '+
+      'Settle them from the <b>Commitments</b> card on the Bridge tab.'+
+      (warn.length?'<div class="hint" style="margin-top:6px;color:#ffcf6b">⚠ '+warn.join('. ')+'.</div>':''));
   }
   // power plant burns fuel continuously (SRD: plantWk tons per week)
   if(G.fuel!=null){ const burn=SHIPS[G.ship].plantWk*days/7;
@@ -278,5 +299,30 @@ function refuel(kind){
     logEntry('Ran the tanks through the onboard fuel processors — refined and jump-safe.','muted');
   }
   if(typeof notifyAction==='function')notifyAction('Refueled ('+kind+'). Tanks: '+Math.floor(G.fuel)+'/'+s.fuelCap+'t '+(G.fuelUnrefined?'unrefined':'refined')+'.');
+  save(); renderAll();
+}
+
+
+/* ---------- Bills: posted monthly, paid by hand. Neglect has teeth. ---------- */
+function billTotal(){ const b=G.bills||{}; return (b.wages||0)+(b.mortgage||0)+(b.upkeep||0); }
+function payBill(kind){
+  if(!G.bills)return;
+  const b=G.bills;
+  const pay1=(k,cat,label,after)=>{
+    const amt=b[k]; if(amt<=0){flash('Nothing owed there.');return;}
+    if(G.credits<amt){ flash('That bill is '+cr(amt)+' — you have '+cr(G.credits)+'.'); return; }
+    G.credits-=amt; book(cat,-amt);
+    b[k]=0; b[k+'M']=0;
+    logEntry('Paid '+label+' — '+cr(amt)+'.','money',-amt);
+    if(after)after(amt);
+  };
+  if(kind==='wages'||kind==='all')pay1('wages','salaries','crew wages',amt=>{
+    const tot=crewSalaries()||1;
+    (G.crew||[]).forEach(c=>{ c.wallet=(c.wallet||0)+Math.round((c.salary||0)*0.1*(amt/tot));
+      bumpCrew(c,'@captain',2); });
+  });
+  if(kind==='mortgage'||kind==='all')pay1('mortgage','mortgage','the ship mortgage');
+  if(kind==='upkeep'||kind==='all')pay1('upkeep','overhead','maintenance & life support');
+  if(typeof notifyAction==='function')notifyAction('Paid ship bills ('+kind+').');
   save(); renderAll();
 }

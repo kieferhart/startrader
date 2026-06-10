@@ -22,6 +22,17 @@ function renderFuel(){
 function renderCommitments(){
   const el=document.getElementById('commitments'); if(!el)return;
   const rows=[];
+  const b=G.bills||{wages:0,mortgage:0,upkeep:0,wagesM:0,mortM:0,upkeepM:0};
+  const bill=(k,label,amt,late,warn)=>{ if(amt<=0)return;
+    rows.push('<div class="w"><div><div class="nm '+(late?'neg':'')+'">'+label+' '+cr(amt)+(late?' · '+late+' mo late':'')+'</div>'+
+      (warn?'<div class="meta neg">'+warn+'</div>':'')+'</div>'+
+      '<button '+(G.credits<amt?'disabled ':'')+'onclick="payBill(\''+k+'\')">Pay</button></div>'); };
+  bill('wages','Crew wages',b.wages,b.wagesM,b.wagesM?'unpaid crew remember this':'');
+  bill('mortgage','Mortgage',b.mortgage,b.mortM,
+    b.mortM>=3?'recovery agents hunting you':b.mortM>=2?'liens filed — high-law ports impound cargo':b.mortM>=1?'late fees accruing (10%/mo)':'');
+  bill('upkeep','Maintenance & life support',b.upkeep,b.upkeepM,'');
+  if(billTotal()>0&&G.credits>=billTotal())
+    rows.push('<div class="w"><div><div class="nm">Settle everything</div></div><button class="primary" onclick="payBill(\'all\')">Pay all '+cr(billTotal())+'</button></div>');
   (G.loans||[]).forEach((l,i)=>{ const owed=Math.round(l.P*(1+l.rate/100));
     rows.push('<div class="w"><div><div class="nm neg">Owe '+l.from+' '+cr(owed)+'</div>'+
       '<div class="meta">due day '+(l.due+1)+(l.missed?' · PAYMENT MISSED':'')+(l.crew?' · crew loan':'')+'</div></div>'+
@@ -298,7 +309,7 @@ function showFinancials(){
   const income=b.sales+b.otherIncome;
   const expenses=-(b.cogs+b.fuel+b.mortgage+b.salaries+(b.overhead||0)+b.fines+b.incidentals+b.spoilage+(b.interest||0)+(b.shrinkage||0)); // these stored negative
   const net=income-expenses;
-  const owed=(G.loans||[]).reduce((a,l)=>a+Math.round(l.P*(1+l.rate/100)),0);
+  const owed=(G.loans||[]).reduce((a,l)=>a+Math.round(l.P*(1+l.rate/100)),0)+(typeof billTotal==='function'?billTotal():0);
   const receivable=(G.lent||[]).filter(l=>!l.resolved).reduce((a,l)=>a+Math.round(l.P*(1+l.rate/100)),0);
   const row=(label,val,opt)=>'<tr><td>'+label+'</td><td class="num '+(val>=0?(opt&&opt.pos?'pos':''):'neg')+'">'+(val<0?'−':'')+'Cr'+Math.abs(Math.round(val)).toLocaleString('en-US')+'</td></tr>';
   const exp=(label,val)=>'<tr><td style="padding-left:14px" class="muted">'+label+'</td><td class="num">'+(val?'−Cr'+Math.abs(Math.round(val)).toLocaleString('en-US'):'—')+'</td></tr>';

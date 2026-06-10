@@ -109,6 +109,14 @@ People-sim rules that matter:
   `lifeSupport()` = Cr2,000 × the design's FIXED stateroom count (SRD: occupied
   or not — the 25-room Frontier Trader is deliberately expensive).
   `monthlyTotal()` = mortgage + salaries + maint + life support.
+- **Bills are MANUAL** (`G.bills` posted monthly in `advanceTime`, paid via
+  `payBill(kind)` from Commitments — nothing auto-deducts; arrears are NOT booked
+  until paid, so the invariant only moves at payment time). Escalation: unpaid
+  wages cut every crew member's `@captain` score each statement; late mortgage
+  adds a 10%/mo fee; 2+ months → `bankTrouble()` impounds cargo on arrival at
+  law≥7 worlds (booked as spoilage, credited to arrears); 3+ months → bounty
+  hunter encounters (pay/fight/run). Crew & NPC chat briefings include unpaid
+  bills, so the crew complains in character.
 - **Crew** — `genCrew`, `CREW_TMPL`, `SKILLPOOL`, `NPC_REL` (the book's d66 relationship
   table). Each member: UPP (6 hex chars, STR·DEX·END·INT·EDU·SOC), age, skills,
   salary, and a relationship pointing at another crewmate.

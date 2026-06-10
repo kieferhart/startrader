@@ -79,6 +79,9 @@ function shipBrief(){
     'Fuel '+Math.floor(G.fuel==null?0:G.fuel)+'/'+s.fuelCap+'t '+(G.fuelUnrefined?'UNREFINED (misjump risk until purified)':'refined')+'. '+
     'Ship morale: '+moraleWord(shipMorale())+'. Captain health: '+(G.captain?hpWord(G.captain):'fit')+'. '+
     (loans?'Ship debts: '+loans+'. ':'')+(reqs?'Open delivery commissions: '+reqs+'. ':'')+
+    ((G.bills&&billTotal()>0)?('UNPAID BILLS: wages '+cr(G.bills.wages)+(G.bills.wagesM?' ('+G.bills.wagesM+' months late — the crew has not been paid)':'')+
+      ', mortgage '+cr(G.bills.mortgage)+(G.bills.mortM?' ('+G.bills.mortM+' months late'+(G.bills.mortM>=3?', recovery agents hunting the ship':G.bills.mortM>=2?', liens filed':'')+')':'')+
+      ', upkeep '+cr(G.bills.upkeep)+'. '):'')+
     'Recent events: '+(recent||'a quiet stretch')+'.';
 }
 function businessWith(ch){

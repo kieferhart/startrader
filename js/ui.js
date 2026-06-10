@@ -1,5 +1,6 @@
 /* ---------- Rendering ---------- */
-function renderAll(){ renderTabs(); renderTop(); renderMap(); renderWorlds(); renderCurrentWorld(); renderMarket(); renderHold(); renderLog(); renderJumpBtn(); renderCommitments(); renderPendingChoice(); }
+function renderAll(){ renderTabs(); renderTop(); renderMap(); renderWorlds(); renderCurrentWorld(); renderMarket(); renderHold(); renderLog(); renderJumpBtn(); renderCommitments(); renderPendingChoice();
+  if(typeof updateChatBadge==='function'){ updateChatBadge(); if(typeof CHAT_OPEN!=='undefined'&&CHAT_OPEN&&!CHAT_CUR)renderChatPanel(); } }
 
 /* ---------- Commitments (loans, receivables, delivery commissions) ---------- */
 function renderCommitments(){

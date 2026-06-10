@@ -11,7 +11,11 @@
 const AI_KEY='starTraderAIKey', AI_USAGE='starTraderAIUsage',
       AI_PROV='starTraderAIProvider', AI_MODEL_KEY='starTraderAIModel';
 const AI_DEFAULTS={anthropic:'claude-haiku-4-5', openrouter:'anthropic/claude-haiku-4.5'};
-function aiKey(){ try{return localStorage.getItem(AI_KEY)||'';}catch(e){return '';} }
+// keys are sanitized to printable ASCII — copied keys often pick up invisible
+// characters or a Unicode ellipsis from truncated displays, which both breaks
+// fetch headers (non ISO-8859-1) and guarantees a 401
+function cleanKey(v){ return String(v||'').replace(/[^\x21-\x7E]/g,''); }
+function aiKey(){ try{return cleanKey(localStorage.getItem(AI_KEY)||'');}catch(e){return '';} }
 function aiProvider(){ try{return localStorage.getItem(AI_PROV)||'anthropic';}catch(e){return 'anthropic';} }
 function aiModel(){ try{return localStorage.getItem(AI_MODEL_KEY)||AI_DEFAULTS[aiProvider()];}catch(e){return AI_DEFAULTS.anthropic;} }
 function aiEnabled(){ return !!aiKey(); }
@@ -40,7 +44,7 @@ async function aiCall(system,messages,schema,maxTok){
       headers:{'content-type':'application/json','authorization':'Bearer '+aiKey(),
         'HTTP-Referer':'https://kieferhart.github.io/startrader/','X-Title':'Star Trader'},
       body:JSON.stringify(body)});
-    if(!r.ok)throw new Error('OpenRouter '+r.status);
+    if(!r.ok){ let m='OpenRouter '+r.status; try{const eb=await r.json(); m+=': '+String((eb.error&&eb.error.message)||'').slice(0,140);}catch(e){} throw new Error(m); }
     const d=await r.json();
     if(d.usage)trackUsage(d.usage.prompt_tokens,d.usage.completion_tokens);
     const t=d.choices&&d.choices[0]&&d.choices[0].message&&d.choices[0].message.content;
@@ -54,7 +58,7 @@ async function aiCall(system,messages,schema,maxTok){
     headers:{'content-type':'application/json','x-api-key':aiKey(),
       'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
     body:JSON.stringify(body)});
-  if(!r.ok)throw new Error('API '+r.status);
+  if(!r.ok){ let m='Anthropic '+r.status; try{const eb=await r.json(); m+=': '+String((eb.error&&eb.error.message)||'').slice(0,140);}catch(e){} throw new Error(m); }
   const d=await r.json();
   if(d.usage)trackUsage(d.usage.input_tokens,d.usage.output_tokens);
   const t=(d.content||[]).find(b=>b.type==='text');
@@ -114,81 +118,141 @@ const CHAT_SCHEMA={type:'object',additionalProperties:false,required:['say','sug
   suggest:{anyOf:[{type:'null'},{type:'string'}]},
   offer:{anyOf:[{type:'null'},{type:'object',additionalProperties:false,required:['type','amount'],
     properties:{type:{type:'string',enum:['gift','loan']},amount:{type:'integer'}}}]}}};
-let CHAT_CUR=null;   // {kind:'crew'|'cast', name}
+let CHAT_CUR=null;   // null = roster list; else {kind:'crew'|'cast', name}
+let CHAT_OPEN=false;
 function chatKey(kind,name){ return kind+':'+name; }
 function chatLog(kind,name){ if(!G.chats)G.chats={}; const k=chatKey(kind,name);
   if(!G.chats[k])G.chats[k]=[]; return G.chats[k]; }
 function chatChar(kind,name){
   return kind==='crew'?crewByName(name):(G.cast||[]).find(c=>c.name===name);
 }
+function chatUnreadMap(){ if(!G.chatUnread)G.chatUnread={}; return G.chatUnread; }
+function chatUnreadTotal(){ return Object.values(chatUnreadMap()).reduce((a,b)=>a+b,0); }
+function markUnread(kind,name){ const m=chatUnreadMap(); const k=chatKey(kind,name); m[k]=(m[k]||0)+1; updateChatBadge(); }
+function updateChatBadge(){ const b=document.getElementById('chatbadge'); if(!b)return;
+  const n=chatUnreadTotal(); b.style.display=n?'flex':'none'; b.textContent=n; }
+function toggleChatPanel(){ CHAT_OPEN=!CHAT_OPEN; if(CHAT_OPEN)dismissChatPop(); renderChatPanel(); }
+function openChatList(){ CHAT_CUR=null; renderChatPanel(); }
 function showChat(kind,name){
-  CHAT_CUR={kind,name};
-  renderChat();
+  CHAT_CUR={kind,name}; CHAT_OPEN=true;
+  delete chatUnreadMap()[chatKey(kind,name)];
+  if(typeof closeModal==='function')closeModal();
+  dismissChatPop(); updateChatBadge(); renderChatPanel(); save();
 }
-function renderChat(extra){
-  const {kind,name}=CHAT_CUR; const c=chatChar(kind,name);
-  if(!c){ openModal('<h2>CHAT</h2><p class="hint">They are not around anymore.</p><div style="text-align:right"><button class="primary" onclick="closeModal()">Close</button></div>'); return; }
+function chatRoster(){
+  const rows=[]; const seen=new Set();
+  (G.crew||[]).forEach(c=>{ rows.push({kind:'crew',name:c.name,sub:c.position+' \u00b7 '+moraleWord(morale(c)),here:true}); seen.add(chatKey('crew',c.name)); });
+  peopleHere().forEach(ch=>{ rows.push({kind:'cast',name:ch.name,sub:ch.role+' \u00b7 '+ch.world,here:true}); seen.add(chatKey('cast',ch.name)); });
+  Object.keys(G.chats||{}).forEach(k=>{
+    if(seen.has(k))return;
+    const i=k.indexOf(':'); const kind=k.slice(0,i), name=k.slice(i+1);
+    const c=chatChar(kind,name); if(!c)return;
+    rows.push({kind,name,sub:(c.role||c.position||'')+' \u00b7 away on '+(c.world||'parts unknown'),here:false});
+  });
+  return rows;
+}
+function renderChatPanel(extra){
+  const p=document.getElementById('chatpanel'); if(!p)return;
+  p.style.display=CHAT_OPEN?'flex':'none';
+  if(!CHAT_OPEN)return;
+  const head=document.getElementById('chathead'), body=document.getElementById('chatbody'), foot=document.getElementById('chatfoot');
+  if(!head||!body||!foot)return;
+  if(!CHAT_CUR){
+    head.innerHTML='<b>COMMS</b><span class="x" style="margin-left:auto" onclick="toggleChatPanel()">\u2715</span>';
+    const m=chatUnreadMap();
+    body.innerHTML=chatRoster().map(r=>{
+      const k=chatKey(r.kind,r.name); const log=(G.chats||{})[k]||[];
+      const last=log.length?String(log[log.length-1].text).replace(/<[^>]*>/g,'').slice(0,42):'';
+      return '<div class="chatrow'+(r.here?'':' away')+'" onclick="showChat(\''+r.kind+'\',\''+r.name+'\')">'+
+        '<b>'+r.name+'</b>'+(m[k]?'<span class="chatdot">'+m[k]+'</span>':'')+
+        '<div class="hint">'+r.sub+'</div>'+(last?'<div class="hint muted">'+last+'</div>':'')+'</div>';
+    }).join('')||'<div class="hint" style="padding:10px">No one around to talk to.</div>';
+    foot.innerHTML=aiEnabled()?'':'<div class="hint" style="padding:2px 4px">Add an API key in <a href="#" onclick="showSettings();return false">\u2699 AI</a> to talk with people.</div>';
+    return;
+  }
+  const kind=CHAT_CUR.kind, name=CHAT_CUR.name; const c=chatChar(kind,name);
+  const present=!!c&&(kind==='crew'||c.world===here().name);
+  head.innerHTML='<span class="x" onclick="openChatList()">\u2039</span><b>'+name+'</b>'+
+    '<span class="hint" style="margin-left:6px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+
+    (c?(kind==='crew'?(c.position+' \u00b7 '+moraleWord(morale(c))+' \u00b7 '+hpWord(c)):(c.role+(present?'':' \u00b7 on '+c.world))):'gone')+'</span>'+
+    '<span class="x" style="margin-left:auto" onclick="toggleChatPanel()">\u2715</span>';
   const log=chatLog(kind,name);
-  const msgs=log.map(m=>'<div class="chatmsg '+(m.who==='you'?'me':'them')+'">'+m.text+'</div>').join('');
-  const sub=kind==='crew'?(c.position+' · '+moraleWord(morale(c))+' · '+hpWord(c)):(c.role+' · '+c.world+' · ship standing '+(shipRel(c)>0?'+':'')+shipRel(c));
-  openModal('<h2>'+name.toUpperCase()+'</h2><div class="hint">'+sub+'</div>'+
-    '<div id="chatlog" class="chatlog">'+(msgs||'<div class="hint">Say something. They are listening.</div>')+(extra||'')+'</div>'+
-    (aiEnabled()
-      ?'<div class="row" style="margin-top:8px"><input id="chatin" type="text" style="flex:1;background:var(--cell);border:1px solid var(--grid);color:var(--ink);border-radius:4px;padding:8px;font-family:inherit" placeholder="Say something…" onkeydown="if(event.key===\'Enter\')sendChat()">'+
-       '<button class="primary" onclick="sendChat()">Send</button></div>'
-      :'<p class="hint" style="margin-top:8px">Chat needs an Anthropic API key — add one in <a href="#" onclick="showSettings();return false;">Settings</a>. (Costs fractions of a cent per message, billed to your key.)</p>')+
-    '<div style="margin-top:10px;text-align:right;"><button onclick="closeModal()">Close</button></div>');
-  const el=document.getElementById('chatlog'); if(el&&el.scrollTo)el.scrollTo(0,99999); else if(el)el.scrollTop=999999;
+  body.innerHTML=(log.map(m=>'<div class="chatmsg '+(m.who==='you'?'me':'them')+'">'+m.text+'</div>').join('')||
+    '<div class="hint" style="padding:8px">Say something. They are listening.</div>')+(extra||'');
+  foot.innerHTML=!aiEnabled()
+    ?'<div class="hint" style="padding:2px 4px">Chat needs a key \u2014 <a href="#" onclick="showSettings();return false">\u2699 AI</a>.</div>'
+    :(!present?'<div class="hint" style="padding:2px 4px">'+name+' isn\u2019t on '+here().name+' right now.</div>'
+    :'<input id="chatin" type="text" placeholder="Say something\u2026" onkeydown="if(event.key===\'Enter\')sendChat()">'+
+     '<button class="primary" onclick="sendChat()">Send</button>');
+  if(body.scrollTo)body.scrollTo(0,999999); else body.scrollTop=999999;
 }
 async function sendChat(){
   const inp=document.getElementById('chatin'); const text=(inp&&inp.value||'').trim();
   if(!text||!CHAT_CUR)return;
-  const {kind,name}=CHAT_CUR; const c=chatChar(kind,name); if(!c)return;
+  const kind=CHAT_CUR.kind, name=CHAT_CUR.name; const c=chatChar(kind,name); if(!c)return;
   const log=chatLog(kind,name);
   log.push({who:'you',text}); if(log.length>16)log.shift();
-  save(); renderChat('<div class="hint">…</div>');
+  save(); renderChatPanel('<div class="hint">\u2026</div>');
   const acts=kind==='crew'?eligibleCrewActs(c,'port'):eligibleNpcActs(c).filter(k=>['tipoff','deal','intro','reqitem','barter','loanoffer'].indexOf(k)>=0);
   const sys=(kind==='crew'?crewSheet(c):npcSheet(c))+CHAT_RULES+
-    ' You may optionally set "suggest" to ONE of these action ids if it fits the conversation: ['+acts.join(', ')+'] — otherwise null.'+
-    (kind==='crew'?' You may optionally set "offer" to {type:"gift"|"loan", amount} ONLY if you genuinely would (warm feelings, you can afford it, it serves your goals) — otherwise null.':' Set "offer" to null.');
-  const msgs=log.map(m=>({role:m.who==='you'?'user':'assistant',content:m.text}));
+    ' You may optionally set "suggest" to ONE of these action ids if it fits the conversation: ['+acts.join(', ')+'] \u2014 otherwise null.'+
+    (kind==='crew'?' You may optionally set "offer" to {type:"gift"|"loan", amount} ONLY if you genuinely would (warm feelings, you can afford it, it serves your goals) \u2014 otherwise null.':' Set "offer" to null.');
+  const msgs=log.map(m=>({role:m.who==='you'?'user':'assistant',content:String(m.text).replace(/<[^>]*>/g,'')}));
   try{
     const out=await aiCall(sys,msgs,CHAT_SCHEMA,400);
     log.push({who:'them',text:out.say}); if(log.length>16)log.shift();
     let extra='';
     if(out.suggest&&acts.indexOf(out.suggest)>=0)
-      extra+='<div style="margin-top:6px"><button onclick="chatDoSuggest(\''+out.suggest+'\')">Let them: '+out.suggest+'</button></div>';
+      extra+='<div style="margin:6px 0"><button onclick="chatDoSuggest(\''+out.suggest+'\')">Let them: '+out.suggest+'</button></div>';
     if(out.offer&&kind==='crew'){
       const amt=Math.round(out.offer.amount/50)*50;
       const ok=morale(c)>35&&amt>0&&amt<=c.wallet&&(out.offer.type==='gift'?amt<=c.wallet*0.5:true);
-      if(ok)extra+='<div style="margin-top:6px"><button class="primary" onclick="chatAcceptOffer(\''+out.offer.type+'\','+amt+')">Accept '+out.offer.type+' of '+cr(amt)+'</button></div>';
+      if(ok)extra+='<div style="margin:6px 0"><button class="primary" onclick="chatAcceptOffer(\''+out.offer.type+'\','+amt+')">Accept '+out.offer.type+' of '+cr(amt)+'</button></div>';
     }
-    save(); renderChat(extra);
+    save(); renderChatPanel(extra);
   }catch(e){
-    log.push({who:'them',text:'<span class="muted">(comm static — try again: '+e.message+')</span>'});
-    save(); renderChat();
+    log.push({who:'them',text:'<span class="muted">(comm static \u2014 '+e.message+')</span>'});
+    save(); renderChatPanel();
   }
 }
 function chatDoSuggest(k){
-  const {kind,name}=CHAT_CUR; const c=chatChar(kind,name); if(!c)return;
+  if(!CHAT_CUR)return;
+  const c=chatChar(CHAT_CUR.kind,CHAT_CUR.name); if(!c)return;
   G._tickCtx='port';
-  if(kind==='crew'){ const res=execCrewAct(c,k);
-    if(res)showEvent('Crew','—',res); }
-  else { const fn=NPC_ACTS[k]; if(fn&&fn.ok(c)){ const res=fn.exec(c); if(res)showEvent('Around the Port','—',res); } }
-  save(); renderAll();
+  if(CHAT_CUR.kind==='crew'){ const res=execCrewAct(c,k);
+    if(res)showEvent('Crew','\u2014',res); }
+  else { const fn=NPC_ACTS[k]; if(fn&&fn.ok(c)){ const res=fn.exec(c); if(res)showEvent('Around the Port','\u2014',res); } }
+  save(); renderAll(); renderChatPanel();
 }
 function chatAcceptOffer(type,amt){
-  const {kind,name}=CHAT_CUR; const c=chatChar(kind,name);
-  if(!c||kind!=='crew'||amt>c.wallet)return;
+  if(!CHAT_CUR)return;
+  const c=chatChar(CHAT_CUR.kind,CHAT_CUR.name);
+  if(!c||CHAT_CUR.kind!=='crew'||amt>c.wallet)return;
   c.wallet-=amt;
-  if(type==='gift'){ gain(amt,name+' chipped in from their own savings'); bumpCrew(c,'@captain',4); }
+  if(type==='gift'){ gain(amt,CHAT_CUR.name+' chipped in from their own savings'); bumpCrew(c,'@captain',4); }
   else { G.credits+=amt; book('loanIn',amt);
     if(!G.loans)G.loans=[];
-    G.loans.push({id:'ln'+(++G.choiceSeq),from:name,fromId:null,P:amt,rate:0,due:G.day+56,missed:0,crew:true});
-    logEntry('Borrowed '+cr(amt)+' from '+name+' — interest-free, but do not test it.','money',amt);
+    G.loans.push({id:'ln'+(++G.choiceSeq),from:CHAT_CUR.name,fromId:null,P:amt,rate:0,due:G.day+56,missed:0,crew:true});
+    logEntry('Borrowed '+cr(amt)+' from '+CHAT_CUR.name+' \u2014 interest-free, but do not test it.','money',amt);
     bumpCrew(c,'@captain',2); }
-  save(); renderChat(); renderAll();
+  save(); renderAll(); renderChatPanel();
 }
+function showChatPop(kind,name,line){
+  if(CHAT_OPEN&&CHAT_CUR&&CHAT_CUR.kind===kind&&CHAT_CUR.name===name){ renderChatPanel(); return; }
+  markUnread(kind,name);
+  let el=document.getElementById('chatpop');
+  if(!el){ el=document.createElement?document.createElement('div'):null;
+    if(el){ el.id='chatpop'; el.className='chatpop'; document.body.appendChild(el); } }
+  if(!el)return;
+  el.innerHTML='<div class="t">'+name+'</div><div>'+line+'</div>'+
+    '<div class="row" style="margin-top:6px;justify-content:flex-end">'+
+    '<button onclick="showChat(\''+kind+'\',\''+name+'\')">Reply</button>'+
+    '<button onclick="dismissChatPop()">\u2715</button></div>';
+  el.style.display='block';
+  clearTimeout(window._chatPopT);
+  window._chatPopT=setTimeout(dismissChatPop,15000);
+}
+function dismissChatPop(){ const el=document.getElementById('chatpop'); if(el)el.style.display='none'; }
 
 /* ---------- Settings ---------- */
 function showSettings(){
@@ -199,20 +263,19 @@ function showSettings(){
    'The key is stored <b>only in this browser</b> (localStorage), never in the save file, and is sent only to the provider you pick. '+
    'Without a key the game runs the same on its built-in behavior engine — chat is the only thing disabled.</p>'+
    '<div class="row" style="margin:10px 0"><span class="hint" style="width:70px">Provider</span>'+
-   '<select id="aiprov" '+inp+' onchange="var m=document.getElementById(\'aimodel\'); if(m)m.placeholder=this.value===\'openrouter\'?\''+AI_DEFAULTS.openrouter+'\':\''+AI_DEFAULTS.anthropic+'\'">'+
+   '<select id="aiprov" '+inp+'>'+
    '<option value="anthropic"'+(prov==='anthropic'?' selected':'')+'>Anthropic (api.anthropic.com)</option>'+
    '<option value="openrouter"'+(prov==='openrouter'?' selected':'')+'>OpenRouter (openrouter.ai)</option>'+
    '</select></div>'+
    '<div class="row" style="margin:10px 0"><span class="hint" style="width:70px">API key</span>'+
-   '<input id="aikey" type="password" placeholder="'+(prov==='openrouter'?'sk-or-...':'sk-ant-...')+'" value="'+(aiKey()?'••••••••••••':'')+'" '+inp+' class="grow" style="flex:1;background:var(--cell);border:1px solid var(--grid);color:var(--ink);border-radius:4px;padding:8px;font-family:inherit"></div>'+
+   '<input id="aikey" type="password" placeholder="'+(prov==='openrouter'?'sk-or-...':'sk-ant-...')+'" value="'+(aiKey()?'••••••••••••':'')+'" '+inp+' style="flex:1;background:var(--cell);border:1px solid var(--grid);color:var(--ink);border-radius:4px;padding:8px;font-family:inherit"></div>'+
    '<div class="row" style="margin:10px 0"><span class="hint" style="width:70px">Model</span>'+
-   '<input id="aimodel" type="text" placeholder="'+AI_DEFAULTS[prov]+'" value="'+(aiModel()===AI_DEFAULTS[prov]?'':aiModel())+'" '+inp+' style="flex:1;background:var(--cell);border:1px solid var(--grid);color:var(--ink);border-radius:4px;padding:8px;font-family:inherit">'+
-   '</div>'+
-   '<div class="row" style="justify-content:flex-end;gap:6px"><button class="primary" onclick="saveAIKey()">Save</button><button onclick="clearAIKey()">Clear key</button></div>'+
-   '<p class="hint" style="margin-top:10px">Leave Model blank for the default (Claude Haiku — cheap and fast: a chat message or crew turn costs fractions of a cent). '+
-   'On OpenRouter you can point it at any model id, e.g. <b>'+AI_DEFAULTS.openrouter+'</b>; spend shows on your OpenRouter dashboard.<br>'+
+   '<input id="aimodel" type="text" placeholder="'+AI_DEFAULTS[prov]+'" value="'+(aiModel()===AI_DEFAULTS[prov]?'':aiModel())+'" '+inp+' style="flex:1;background:var(--cell);border:1px solid var(--grid);color:var(--ink);border-radius:4px;padding:8px;font-family:inherit"></div>'+
+   '<div class="row" style="justify-content:flex-end;gap:6px"><button class="primary" onclick="saveAIKey()">Save &amp; test</button><button onclick="testAIKey()">Test key</button><button onclick="clearAIKey()">Clear key</button></div>'+
+   '<p class="hint" style="margin-top:10px">Leave Model blank for the default (Claude Haiku — cheap and fast). '+
+   'On OpenRouter you can use any model id, e.g. <b>'+AI_DEFAULTS.openrouter+'</b>; spend shows on your OpenRouter dashboard.<br>'+
    'Usage this browser: '+u.i.toLocaleString()+' in / '+u.o.toLocaleString()+' out'+(prov==='anthropic'?' ≈ $'+aiCost().toFixed(3):' (≈ $'+aiCost().toFixed(3)+' at Haiku rates; actual depends on model)')+'</p>'+
-   '<p class="hint">Keys: console.anthropic.com → API keys, or openrouter.ai → Keys.</p>'+
+   '<p class="hint">Keys: console.anthropic.com → API keys (needs API credit — separate from a claude.ai subscription), or openrouter.ai → Keys.</p>'+
    '<div style="margin-top:12px;text-align:right;"><button class="primary" onclick="closeModal()">Close</button></div>');
 }
 function saveAIKey(){
@@ -222,16 +285,29 @@ function saveAIKey(){
   try{
     localStorage.setItem(AI_PROV,p);
     if(m)localStorage.setItem(AI_MODEL_KEY,m); else localStorage.removeItem(AI_MODEL_KEY);
-    if(v&&v.indexOf('•')<0)localStorage.setItem(AI_KEY,v.trim());
+    if(v&&v.indexOf('•')<0){
+      const truncated=/\u2026|\.\.\.$/.test(v.trim());
+      localStorage.setItem(AI_KEY,cleanKey(v));
+      if(truncated){ flash('That key looks truncated (ends in …) — copy the FULL key from the provider console, not from a shortened display.'); return; }
+    }
   }catch(e){}
-  closeModal(); flash(aiEnabled()?'AI enabled via '+aiProvider()+' ('+aiModel()+') — the crew can talk now.':'No key saved.');
+  closeModal();
+  if(aiEnabled())testAIKey();              // verify the key the moment it's entered
+  else flash('No key saved.');
 }
 function clearAIKey(){ try{localStorage.removeItem(AI_KEY);}catch(e){} closeModal(); flash('AI key removed. Rule-based behavior continues.'); }
+async function testAIKey(){
+  if(!aiEnabled()){ flash('Save a key first.'); return; }
+  flash('Testing key against '+aiProvider()+'…');
+  try{ await aiCall('Connection test. Reply with the single word: ok',[{role:'user',content:'ping'}],null,16);
+    flash('✓ Key works — '+aiProvider()+' / '+aiModel()+'. The crew can talk now.'); }
+  catch(e){ flash('✗ '+e.message+' — check the key has no stray characters, matches the selected provider, and (Anthropic) that the console account has API credit.'); }
+}
 
 /* ---------- Reactions: an AI beat after player actions ----------
    Every state-changing player action calls notifyAction(desc). With a key
    present (and a cooldown so costs stay tiny), one crew member or local
-   with something to say pops up a chat bubble about it. */
+   with something to say sends a message into the chat dock. */
 const REACT_SCHEMA={type:'object',additionalProperties:false,required:['who','say'],
  properties:{who:{anyOf:[{type:'null'},{type:'string'}]},say:{type:'string'}}};
 let LAST_REACT=0, REACT_BUSY=false;
@@ -246,7 +322,6 @@ function notifyAction(desc){
   }catch(e){REACT_BUSY=false;}
 }
 async function aiReact(desc){
-  // candidates: every crew member + up to 2 locals with strong feelings
   const cands=[];
   (G.crew||[]).forEach(c=>cands.push({kind:'crew',name:c.name,sheet:crewSheet(c)}));
   peopleHere().filter(ch=>Math.abs(shipRel(ch))>15).slice(0,2)
@@ -263,18 +338,5 @@ async function aiReact(desc){
   log.push({who:'them',text:out.say}); if(log.length>16)log.shift();
   save();
   showChatPop(c.kind,c.name,out.say);
+  updateChatBadge();
 }
-function showChatPop(kind,name,line){
-  let el=document.getElementById('chatpop');
-  if(!el){ el=document.createElement?document.createElement('div'):null;
-    if(el){ el.id='chatpop'; el.className='chatpop'; document.body.appendChild(el); } }
-  if(!el)return;
-  el.innerHTML='<div class="t">'+name+'</div><div>'+line+'</div>'+
-    '<div class="row" style="margin-top:6px;justify-content:flex-end">'+
-    '<button onclick="dismissChatPop();showChat(\''+kind+'\',\''+name+'\')">Reply</button>'+
-    '<button onclick="dismissChatPop()">✕</button></div>';
-  el.style.display='block';
-  clearTimeout(window._chatPopT);
-  window._chatPopT=setTimeout(dismissChatPop,15000);
-}
-function dismissChatPop(){ const el=document.getElementById('chatpop'); if(el)el.style.display='none'; }

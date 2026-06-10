@@ -48,7 +48,7 @@ function load(){ try{const s=localStorage.getItem(SAVE); if(!s)return null; cons
     if(!g.mods)g.mods=emptyMods(); if(!g.contacts)g.contacts=[]; if(!g.tab)g.tab='trade';
     if(!g.cast)g.cast=[]; if(g.castSeq==null)g.castSeq=0;
     if(!g.loans)g.loans=[]; if(!g.lent)g.lent=[]; if(!g.requests)g.requests=[];
-    if(!g.chats)g.chats={}; if(!g.visited)g.visited=[g.here];
+    if(!g.chats)g.chats={}; if(!g.chatUnread)g.chatUnread={}; if(!g.visited)g.visited=[g.here];
     if(!g.captain)g.captain=genCaptain();
     augmentCrewAll(g.crew); g.crew.forEach(c=>augmentHealth(c));
     (g.cast||[]).forEach(c=>augmentCast(c)); }
@@ -76,7 +76,7 @@ function newGame(shipKey){
     mods:emptyMods(), pendingChoice:null, choiceSeq:0,
     courier:null, smuggleJob:null, passenger:null,
     cast:[], castSeq:0,
-    loans:[], lent:[], requests:[], chats:{}, visited:[start.id],
+    loans:[], lent:[], requests:[], chats:{}, chatUnread:{}, visited:[start.id],
     captain:genCaptain(), lastCrewTick:0,
     tab:'trade', log:[]
   };

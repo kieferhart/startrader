@@ -25,7 +25,7 @@ const GOAL_POOL={
   {id:'letter',txt:'get a letter carried home',served:['network']},
  ],
  medium:[
-  {id:'save20',txt:'save up Cr20,000',served:['sidejob','privatetrade','raise','steal','smugglepass'],w:20000},
+  {id:'save20',txt:'save up Cr20,000',served:['sidejob','privatetrade','steal','smugglepass'],w:20000},
   {id:'getraise',txt:'talk the captain into a raise',served:['raise']},
   {id:'heirloom',txt:'find a buyer for a family heirloom',served:['network','privatetrade'],w:5000},
   {id:'cert',txt:'earn a guild certification',served:['train','maintain','tend']},
@@ -33,7 +33,7 @@ const GOAL_POOL={
   {id:'stake',txt:'build a private trading stake',served:['privatetrade','scout'],w:10000},
  ],
  long:[
-  {id:'ownship',txt:'one day buy a ship of their own',served:['privatetrade','raise','steal','smugglepass','sidejob'],w:150000},
+  {id:'ownship',txt:'one day buy a ship of their own',served:['privatetrade','steal','smugglepass','sidejob'],w:150000},
   {id:'garden',txt:'retire to a garden world',served:['sidejob','privatetrade'],w:60000},
   {id:'clearname',txt:'clear their name back home',served:['network']},
   {id:'sibling',txt:'find a lost sibling somewhere out here',served:['network','carouse'],worlds:8},
@@ -165,9 +165,13 @@ const CREW_ACTS={
  gripe:{w:c=>Math.max(0,(10-morale(c))/8)+(hasTrait(c,'cynical')?2:0),ok:c=>true,
   exec:c=>{ G.mods.nextTradeDM-=1; bumpCrew(c,'@captain',-2);
     return c.name+' has been loudly unhappy; it is wearing on everyone. (−1 next sale)'; }},
- raise:{w:c=>2+(hasTrait(c,'greedy')?2:0)+(morale(c)<0?2:0)+(goalServes(c,'raise')?4:0),
-  ok:c=>G.day-(c.lastRaiseAsk||-99)>56,
-  exec:c=>{ c.lastRaiseAsk=G.day; const amt=Math.max(200,Math.round((c.salary||1000)*0.2/100)*100);
+ raise:{w:c=>{ const motivated=hasTrait(c,'greedy')||morale(c)<-10||(c.goals&&c.goals.medium&&c.goals.medium.id==='getraise');
+   return motivated?1.2:0.15; },
+  ok:c=>G.day-(c.lastRaiseAsk||-999)>112                      // ~4 months per person
+    &&G.day-(G.lastRaiseDay||-999)>42                          // one ask per ~6 weeks shipwide
+    &&G.day-(c.lastRaiseGrant||-999)>180                       // got one recently? sit down
+    &&!(G.bills&&G.bills.wages>0),                             // unpaid wages: different conversation
+  exec:c=>{ c.lastRaiseAsk=G.day; G.lastRaiseDay=G.day; const amt=Math.max(200,Math.round((c.salary||1000)*0.2/100)*100);
     chatOffer('crew',c.name,'crewRaise',
       'Cap, got a minute? I\u2019m asking for a raise \u2014 '+cr(amt)+' a month more. '+
       (morale(c)<0?'I\u2019d rather not make it a thing.':'I\u2019ve earned it and you know it.'),
@@ -382,7 +386,7 @@ Object.assign(CHOICES,{
    advanceTime(2);
    return 'You buy two days dodging traffic control and burn out-system. The writ does not expire.'; },
  crewRaise(k,d){ const c=crewByName(d.name); if(!c)return 'They have already left the ship.';
-   if(k==='yes'){ c.salary=(c.salary||0)+d.amt; bumpCrew(c,'@captain',12+d6());
+   if(k==='yes'){ c.salary=(c.salary||0)+d.amt; c.lastRaiseGrant=G.day; bumpCrew(c,'@captain',12+d6());
      return 'You shake on it. '+c.name+' walks taller for a week. (salaries +'+cr(d.amt)+'/mo)'; }
    bumpCrew(c,'@captain',-(8+d6()));
    return c.name+' takes it without a word, which is somehow worse.'; },

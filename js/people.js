@@ -114,6 +114,8 @@ function augmentCast(ch){
   if(!ch.goals)ch.goals={short:npcGoal('short'),medium:npcGoal('medium'),long:npcGoal('long')};
   if(ch.wealth==null)ch.wealth=R(4);                        // 1..4 loan/premium scale
   if(ch.hpMax==null){ ch.hpMax=_2d6()+_2d6()+_2d6(); ch.hp=ch.hpMax; }   // physical UPP sum
+  if(!ch.wantItem){ const w=npcWantCat(ch);                 // a CONCRETE item off the goods
+    if(w)ch.wantItem={gid:w,vname:goodVariant(w)}; }        // roster — chat + requests agree
   return ch;
 }
 
@@ -166,9 +168,11 @@ const CREW_ACTS={
  raise:{w:c=>2+(hasTrait(c,'greedy')?2:0)+(morale(c)<0?2:0)+(goalServes(c,'raise')?4:0),
   ok:c=>G.day-(c.lastRaiseAsk||-99)>56,
   exec:c=>{ c.lastRaiseAsk=G.day; const amt=Math.max(200,Math.round((c.salary||1000)*0.2/100)*100);
-    offerChoice('crewRaise','Crew',0,'<b>'+c.name+'</b> asks for a word in private: a raise of '+cr(amt)+'/month. '+
-      (morale(c)<0?'There is an edge in their voice.':'They make a fair case.'),{name:c.name,amt},
-      [{k:'yes',label:'Grant it (+'+cr(amt)+'/mo)'},{k:'no',label:'Times are tight — refuse'}]);
+    chatOffer('crew',c.name,'crewRaise',
+      'Cap, got a minute? I\u2019m asking for a raise \u2014 '+cr(amt)+' a month more. '+
+      (morale(c)<0?'I\u2019d rather not make it a thing.':'I\u2019ve earned it and you know it.'),
+      {name:c.name,amt},
+      [{k:'yes',label:'Grant it (+'+cr(amt)+'/mo)'},{k:'no',label:'Times are tight \u2014 refuse'}]);
     return null; }},
  privatetrade:{w:c=>sneakW(c,1+(hasTrait(c,'greedy')?3:0)+(hasTrait(c,'ambitious')?2:0),6,'privatetrade'),
   ok:(c,ctx)=>ctx==='port'&&invTons(c)<1&&G.market&&G.market.some(m=>m.ppt<=c.wallet&&m.tons>0),
@@ -297,31 +301,33 @@ const NPC_ACTS={
  intro:{w:2,ok:ch=>shipRel(ch)>40,exec:ch=>{ G.contacts.push(genContact());
    return '<b>'+ch.name+'</b> introduces you around. (new contact)'; }},
  reqitem:{w:4,ok:ch=>!(G.requests||[]).some(r=>r.by===ch.id),
-  exec:ch=>{ const want=npcWantCat(ch); const pool=Object.values(TRADE).filter(g=>!g.illegal).concat(COMMON);
-    const g=want?goodById(want):pool[R(pool.length)-1];
-    const tons=Math.min(6,ch.wealth+R(2)); const match=want===g.id;
+  exec:ch=>{ const it=ch.wantItem; const pool=Object.values(TRADE).filter(g=>!g.illegal).concat(COMMON);
+    const g=it?goodById(it.gid):pool[R(pool.length)-1];
+    const vname=it?it.vname:goodVariant(g.id);
+    const tons=Math.min(6,ch.wealth+R(2)); const match=!!it;
     const mult=Math.min(2.5,1.5+Math.max(0,shipRel(ch))/200+(match?0.4:0));
     const ppt=Math.round(g.base*mult); const due=G.day+14+d6()*7;
-    offerChoice('npcReq','People',0,'<b>'+ch.name+'</b> ('+ch.role+') needs <b>'+tons+'t of '+g.name+'</b>'+
-      (match?' — '+(ch.goals.medium?'they want to '+ch.goals.medium.txt:'badly')+'.':'.')+
-      ' They will pay <b>'+cr(ppt)+'/t</b> ('+Math.round(mult*100)+'% of base) on delivery here, within '+(due-G.day)+' days.',
-      {_cast:ch.id,gid:g.id,tons,ppt,due,name:ch.name},
-      [{k:'yes',label:'Take the commission'},{k:'no',label:'Can’t promise that'}]);
+    chatOffer('cast',ch.name,'npcReq',
+      'I need <b>'+tons+'t of '+vname+'</b> ('+g.name+')'+(match&&ch.goals.medium?' — for my plans to '+ch.goals.medium.txt+'.':'.')+
+      ' I\u2019ll pay <b>'+cr(ppt)+'/t</b> \u2014 '+Math.round(mult*100)+'% of base \u2014 on delivery here within '+(due-G.day)+' days. Can you source it?',
+      {_cast:ch.id,gid:g.id,vname,tons,ppt,due,name:ch.name},
+      [{k:'yes',label:'Take the commission'},{k:'no',label:'Can\u2019t promise that'}]);
     return null; }},
  loanoffer:{w:2,ok:ch=>shipRel(ch)>25&&ch.wealth>=2&&G.credits<100000&&(G.loans||[]).length<3,
   exec:ch=>{ const P=ch.wealth*2500*d6(); const rate=10+d6()*5; const due=G.day+28;
-    offerChoice('npcLoanOffer','People',0,'<b>'+ch.name+'</b> sizes up your ledger and offers a loan: <b>'+cr(P)+'</b> now, '+
-      '<b>'+cr(Math.round(P*(1+rate/100)))+'</b> back within 28 days ('+rate+'%). "Among friends," they add, in the tone of someone who has collected before.',
+    chatOffer('cast',ch.name,'npcLoanOffer',
+      'Word is your ledger\u2019s thin. I can front you <b>'+cr(P)+'</b> \u2014 <b>'+cr(Math.round(P*(1+rate/100)))+'</b> back within 28 days ('+rate+'%). Among friends.',
       {_cast:ch.id,P,rate,due,name:ch.name},
       [{k:'yes',label:'Take the loan'},{k:'no',label:'Decline politely'}]);
     return null; }},
  loanask:{w:2,ok:ch=>{ const g=ch.goals&&ch.goals.medium&&npcGoalDef(ch.goals.medium.id);
    return g&&g.loan&&G.credits>20000&&!(G.lent||[]).some(l=>l.toId===ch.id&&!l.resolved); },
   exec:ch=>{ const P=ch.wealth*1000*d6(); const rate=20+d6()*10; const due=G.day+28;
-    offerChoice('npcLoanAsk','People',0,'<b>'+ch.name+'</b> wants to '+ch.goals.medium.txt+' — and is short <b>'+cr(P)+'</b>. '+
-      'They promise <b>'+cr(Math.round(P*(1+rate/100)))+'</b> back in 28 days. Their eyes say it matters.',
+    chatOffer('cast',ch.name,'npcLoanAsk',
+      'I\u2019m going to be straight with you. I want to '+ch.goals.medium.txt+' and I\u2019m short <b>'+cr(P)+'</b>. '+
+      'You\u2019d see <b>'+cr(Math.round(P*(1+rate/100)))+'</b> back in 28 days. It matters.',
       {_cast:ch.id,P,rate,due,name:ch.name},
-      [{k:'yes',label:'Lend the money'},{k:'no',label:'Money and friends don’t mix'}]);
+      [{k:'yes',label:'Lend the money'},{k:'no',label:'Money and friends don\u2019t mix'}]);
     return null; }},
  barter:{w:2,ok:ch=>G.hold.length>0&&shipRel(ch)>0,
   exec:ch=>{ let bi=0,bv=-1; G.hold.forEach((h,i)=>{const v=h.ppt*h.tons; if(v>bv){bv=v;bi=i;}});
@@ -331,8 +337,9 @@ const NPC_ACTS={
     const skew=1.1+R(3)*0.07;                                  // value lands in the player's favor
     const giveVal=Math.round(h.base*take*skew);
     const giveTons=Math.max(1,Math.round(giveVal/g.base));
-    offerChoice('npcBarter','People',0,'<b>'+ch.name+'</b> proposes a straight swap: your <b>'+take+'t of '+h.name+'</b> for their <b>'+
-      giveTons+'t of '+goodVariant(g.id)+'</b> ('+g.name+', ~'+cr(g.base)+'/t base). The numbers lean your way — they want what you have.',
+    chatOffer('cast',ch.name,'npcBarter',
+      'Straight swap: your <b>'+take+'t of '+h.name+'</b> for my <b>'+giveTons+'t of '+goodVariant(g.id)+'</b> ('+g.name+', ~'+cr(g.base)+'/t base). '+
+      'The numbers lean your way \u2014 I want what you\u2019re carrying.',
       {_cast:ch.id,hi:bi,hname:h.name,take,gid:g.id,giveTons,name:ch.name},
       [{k:'yes',label:'Shake on it'},{k:'no',label:'Pass'}]);
     return null; }},
@@ -383,8 +390,8 @@ Object.assign(CHOICES,{
  npcReq(k,d){ const ch=castById(d._cast);
    if(k!=='yes')return 'They nod, disappointed, and start asking down the dock.';
    if(!G.requests)G.requests=[];
-   G.requests.push({id:'rq'+(++G.choiceSeq),by:d._cast,name:d.name,gid:d.gid,tons:d.tons,ppt:d.ppt,due:d.due,world:here().name});
-   return 'Commission logged: '+d.tons+'t of '+goodById(d.gid).name+' to '+d.name+' on '+here().name+' by day '+(d.due+1)+', at '+cr(d.ppt)+'/t. (see Commitments)'; },
+   G.requests.push({id:'rq'+(++G.choiceSeq),by:d._cast,name:d.name,gid:d.gid,vname:d.vname,tons:d.tons,ppt:d.ppt,due:d.due,world:here().name});
+   return 'Good. '+d.tons+'t of '+(d.vname||goodById(d.gid).name)+' ('+goodById(d.gid).name+'), here, by day '+(d.due+1)+', at '+cr(d.ppt)+'/t. It\u2019s in your Commitments.'; },
  npcLoanOffer(k,d){ if(k!=='yes')return 'They pocket the chit. "The offer keeps. Mostly."';
    if(!G.loans)G.loans=[];
    G.credits+=d.P; book('loanIn',d.P);

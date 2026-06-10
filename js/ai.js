@@ -80,15 +80,28 @@ function crewSheet(c){
     'Goals — soon: '+c.goals.short.txt+'; this year: '+c.goals.medium.txt+'; someday: '+c.goals.long.txt+'. '+
     'Health: '+hpWord(c)+'. Private savings: about '+cr(c.wallet)+' (SECRET — never state the number; only offer money if your feelings toward the captain are warm and it serves your interests). '+
     'Feelings (−100 hostile..+100 devoted): '+rels+'. '+(c.rel?('Background: '+c.rel.desc+' '+(c.rel.target||'')+'. '):'')+
-    shipBrief();
+    shipBrief()+worldKnowledge(c.name);
 }
 function npcSheet(ch){
   return 'You are '+ch.name+', a '+ch.role+' on '+ch.world+'. Traits: '+(ch.traits||[]).join(', ')+'. '+
     'Goals — soon: '+ch.goals.short.txt+'; this year: '+ch.goals.medium.txt+'; someday: '+ch.goals.long.txt+'. '+
     'Your feeling toward this ship and crew: '+shipRel(ch)+' (−100..+100). '+
-    'You met them on '+ch.world+'. '+shipBrief();
+    'You met them on '+ch.world+'. '+
+    (ch.wantItem?('You NEED to source a specific item: '+ch.wantItem.vname+' ('+goodById(ch.wantItem.gid).name+'). If you ask the captain to obtain goods for you, it must be exactly that item — never any other goods. '):'')+
+    shipBrief()+worldKnowledge(ch.name);
 }
-const CHAT_RULES=' RULES: Stay in character — terse, lived-in spacer dialect. 1–3 sentences. Never invent game numbers, cargo, prices, rules or events. Never reveal hidden mechanics. If asked for money you do not want to give, deflect in character.';
+function worldKnowledge(excludeName){
+  const from=here(); 
+  const near=G.worlds.filter(w=>w.id!==G.here).map(w=>({w,d:hexDist(from,w)}))
+    .sort((x,y)=>x.d-y.d).slice(0,6)
+    .map(x=>x.w.name+' ('+(x.w.codes.join(' ')||'frontier world')+', '+x.d+'pc away)').join('; ');
+  const others=(G.cast||[]).filter(c=>c.name!==excludeName).slice(-10)
+    .map(c=>c.name+' ('+c.role+', on '+c.world+')').join('; ');
+  return ' REAL PLACES: you are on '+here().name+'. Nearby worlds: '+near+'. '+
+    'REAL PEOPLE you know of: '+(others||'nobody of note')+'. '+
+    'Crew of the visiting ship: '+(G.crew||[]).map(c=>c.name+' ('+c.position+')').join(', ')+'.';
+}
+const CHAT_RULES=' RULES: Stay in character — terse, lived-in spacer dialect. 1–3 sentences. Never invent game numbers, cargo, prices, rules or events. Never reveal hidden mechanics. If asked for money you do not want to give, deflect in character. When you mention people, traders, worlds or places, use ONLY names from the REAL PLACES / REAL PEOPLE lists in your briefing — never invent names of people or locations.';
 
 /* ---------- AI crew brain (replaces the rule picks when enabled) ---------- */
 const BRAIN_SCHEMA={type:'object',additionalProperties:false,required:['picks'],
@@ -177,8 +190,13 @@ function renderChatPanel(extra){
     (c?(kind==='crew'?(c.position+' \u00b7 '+moraleWord(morale(c))+' \u00b7 '+hpWord(c)):(c.role+(present?'':' \u00b7 on '+c.world))):'gone')+'</span>'+
     '<span class="x" style="margin-left:auto" onclick="toggleChatPanel()">\u2715</span>';
   const log=chatLog(kind,name);
-  body.innerHTML=(log.map(m=>'<div class="chatmsg '+(m.who==='you'?'me':'them')+'">'+m.text+'</div>').join('')||
-    '<div class="hint" style="padding:8px">Say something. They are listening.</div>')+(extra||'');
+  body.innerHTML=(log.map(function(m,i){
+    let inner='<div class="chatmsg '+(m.who==='you'?'me':'them')+'">'+m.text;
+    if(m.off&&!m.off.done)inner+='<div class="row" style="margin-top:7px">'+
+      m.off.options.map(o=>'<button onclick="resolveChatOffer('+i+',\''+o.k+'\')">'+o.label+'</button>').join('')+'</div>';
+    else if(m.off&&m.off.done)inner+='<div class="hint" style="margin-top:4px">\u2713 settled</div>';
+    return inner+'</div>';
+  }).join('')||'<div class="hint" style="padding:8px">Say something. They are listening.</div>')+(extra||'');
   foot.innerHTML=!aiEnabled()
     ?'<div class="hint" style="padding:2px 4px">Chat needs a key \u2014 <a href="#" onclick="showSettings();return false">\u2699 AI</a>.</div>'
     :(!present?'<div class="hint" style="padding:2px 4px">'+name+' isn\u2019t on '+here().name+' right now.</div>'
@@ -193,7 +211,7 @@ async function sendChat(){
   const log=chatLog(kind,name);
   log.push({who:'you',text}); if(log.length>16)log.shift();
   save(); renderChatPanel('<div class="hint">\u2026</div>');
-  const acts=kind==='crew'?eligibleCrewActs(c,'port'):eligibleNpcActs(c).filter(k=>['tipoff','deal','intro','reqitem','barter','loanoffer'].indexOf(k)>=0);
+  const acts=kind==='crew'?eligibleCrewActs(c,'port'):eligibleNpcActs(c).filter(k=>['tipoff','deal','intro','reqitem','barter','loanoffer'].indexOf(k)>=0&&(k!=='reqitem'||c.wantItem));
   const sys=(kind==='crew'?crewSheet(c):npcSheet(c))+CHAT_RULES+
     ' You may optionally set "suggest" to ONE of these action ids if it fits the conversation: ['+acts.join(', ')+'] \u2014 otherwise null.'+
     (kind==='crew'?' You may optionally set "offer" to {type:"gift"|"loan", amount} ONLY if you genuinely would (warm feelings, you can afford it, it serves your goals) \u2014 otherwise null.':' Set "offer" to null.');
@@ -253,6 +271,33 @@ function showChatPop(kind,name,line){
   window._chatPopT=setTimeout(dismissChatPop,15000);
 }
 function dismissChatPop(){ const el=document.getElementById('chatpop'); if(el)el.style.display='none'; }
+
+/* ---------- In-chat interactive offers (replace pop-ups for person business) ---------- */
+function chatOffer(ck,name,kind,text,data,options){
+  const log=chatLog(ck,name);
+  log.push({who:'them',text,off:{kind,data,options,done:false}});
+  if(log.length>24)log.shift();
+  save();
+  if(CHAT_OPEN&&CHAT_CUR&&CHAT_CUR.kind===ck&&CHAT_CUR.name===name)renderChatPanel();
+  else showChatPop(ck,name,String(text).replace(/<[^>]*>/g,'').slice(0,100));
+  updateChatBadge();
+}
+function resolveChatOffer(i,k){
+  if(!CHAT_CUR)return;
+  const log=chatLog(CHAT_CUR.kind,CHAT_CUR.name);
+  const m=log[i]; if(!m||!m.off||m.off.done)return;
+  m.off.done=true; m.off.choice=k;
+  const out=(CHOICES[m.off.kind]||function(){return '';})(k,m.off.data);
+  if(m.off.data&&m.off.data._cast){            // engaging warms ties; brushing off cools them
+    const ch=castById(m.off.data._cast);
+    const declined=['no','pass','refuse'].indexOf(k)>=0;
+    if(ch&&G.crew&&G.crew.length)bumpRel(ch,G.crew[R(G.crew.length)-1].name,declined?-(3+d6()):(3+d6()));
+  }
+  if(out)log.push({who:'them',text:out});
+  if(log.length>24)log.shift();
+  if(typeof notifyAction==='function')notifyAction('Decided on '+CHAT_CUR.name+'\u2019s proposal ('+m.off.kind+'): chose "'+k+'".');
+  save(); renderAll(); renderChatPanel();
+}
 
 /* ---------- Settings ---------- */
 function showSettings(){

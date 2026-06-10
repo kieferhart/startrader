@@ -14,7 +14,8 @@ function renderCommitments(){
     rows.push('<div class="w"><div><div class="nm pos">'+l.to+' owes you '+cr(back)+'</div>'+
       '<div class="meta">promised by day '+(l.due+1)+'</div></div></div>'); });
   (G.requests||[]).forEach((r,i)=>{ const canDeliver=here().name===r.world&&G.hold.some(h=>h.id===r.gid);
-    rows.push('<div class="w"><div><div class="nm">'+r.tons+'t '+goodById(r.gid).name+' → '+r.name+'</div>'+
+    rows.push('<div class="w"><div><div class="nm">'+r.tons+'t '+(r.vname||goodById(r.gid).name)+' → '+r.name+'</div>'+
+      '<div class="meta">'+goodById(r.gid).name+'</div>'+
       '<div class="meta">'+r.world+' · '+cr(r.ppt)+'/t · by day '+(r.due+1)+'</div></div>'+
       '<button '+(canDeliver?'':'disabled ')+'onclick="deliverRequest('+i+')">Deliver</button></div>'); });
   el.innerHTML=rows.length?rows.join(''):'<div class="hint">No standing obligations. The freest a trader ever feels.</div>';

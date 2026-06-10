@@ -227,3 +227,47 @@
     .jumpscreen{right:330px;}
     .jumpscreen .jemerge{right:330px;}
   }
+
+  /* ================= AMBER CRT THEME (body.crt) — toggle in Settings or [T] ================= */
+  body.crt{
+    --bg:#070300; --panel:#0f0800; --panel2:#0b0500; --grid:#321f00;
+    --ink:#ffb000; --dim:#9a6700; --accent:#ffd23f; --good:#ffd23f;
+    --bad:#ff5c1a; --warn:#ffdd66; --head:#d08f00; --cell:#0a0500;
+    text-shadow:0 0 3px rgba(255,176,0,.4);
+  }
+  body.crt::after{content:''; position:fixed; inset:0; pointer-events:none; z-index:200;
+    background:
+      repeating-linear-gradient(0deg, rgba(0,0,0,0) 0 2px, rgba(0,0,0,.22) 2px 3px),
+      radial-gradient(ellipse 120% 100% at 50% 50%, transparent 60%, rgba(0,0,0,.42) 100%);
+    animation:crtflick 6s infinite;}
+  @keyframes crtflick{0%,100%{opacity:1;}97%{opacity:1;}98%{opacity:.92;}99%{opacity:1;}}
+  body.crt .topbar{background:linear-gradient(180deg,#130a00,#070300); border-bottom-color:#321f00;}
+  body.crt .topbar h1, body.crt .topbar h1 span{color:#ffd23f;}
+  body.crt button{background:#150c00; border-color:#3a2400; color:#ffb000;}
+  body.crt button:hover:not(:disabled){background:#241500; border-color:#ffb000;}
+  body.crt button.primary{background:#241500; border-color:#9a6700;}
+  body.crt button.danger{border-color:#6e2a00;}
+  body.crt .tabs button.on{color:#ffd23f; border-bottom-color:#ffd23f;}
+  body.crt .code{background:#1c1100; color:#ffc46a;}
+  body.crt .code.bad{background:#2b0e00; color:#ff9466;}
+  body.crt .event{background:#120b02; border-left-color:#ff8c00;}
+  body.crt .event .t{color:#ffc23f;}
+  body.crt .flav{color:#c98f2e; border-top-color:#3a2400;}
+  body.crt .flav b{color:#ffd27f;}
+  body.crt .modal.evpop{border-color:#ff8c00; box-shadow:0 0 50px #ff8c0033;}
+  body.crt .evt{color:#ffc23f; border-bottom-color:#3a2400;}
+  body.crt .chatpanel{border-color:#9a6700;}
+  body.crt .chatdock{background:#241500; border-color:#9a6700;}
+  body.crt .chatpop{background:#120b02; border-color:#ff8c00; color:#ffcf7f;}
+  body.crt .chatpop .t{color:#ffc23f;}
+  body.crt .chatmsg.me{background:#241500; border-color:#9a6700;}
+  body.crt .chatmsg.them{background:#120b02; border-color:#3a2400; color:#ffcf7f;}
+  body.crt .chatdot,body.crt .chatbadge{background:#ff8c00; color:#000;}
+  body.crt .uwp{color:#ffd23f;}
+  body.crt .worlds .w.here{border-color:#ffd23f; background:#170e00;}
+  body.crt .jumpscreen{background:
+    radial-gradient(ellipse 80% 50% at 50% -10%, #2a160033, transparent),
+    linear-gradient(180deg,#050200,#0a0500 60%,#050200);}
+  body.crt .jumpscreen h2{color:#ffc23f;}
+  body.crt .jumpscreen .event{background:#120b02dd;}
+  body.crt .pos{color:#ffd23f;} body.crt .neg{color:#ff5c1a;}

@@ -139,8 +139,38 @@ function renderTabs(){
   });
 }
 
+/* ---------- Theme (Standard vs Amber CRT — old design stays) ---------- */
+function crtOn(){ try{return localStorage.getItem('starTraderTheme')==='crt';}catch(e){return false;} }
+function setTheme(t){
+  try{localStorage.setItem('starTraderTheme',t==='crt'?'crt':'std');}catch(e){}
+  applyTheme(); if(G)renderAll();
+  if(typeof flash==='function'&&G)flash(t==='crt'?'Amber phosphor warmed up. [T] toggles back.':'Standard display restored.');
+}
+function applyTheme(){ try{ if(document.body&&'className' in document.body)document.body.className=crtOn()?'crt':''; }catch(e){} }
+function showKeysHelp(){
+  openModal('<h2>KEYBOARD</h2><table><tbody>'+
+   [['1 / 2 / 3','Trade · Star Map · Bridge tabs'],['F / A','search cargo at port / away'],
+    ['[ / ]','cycle jump destination'],['J','jump'],['E or Enter','emerge from jumpspace'],
+    ['R / U / K / Y','refuel refined / unrefined / skim / purify'],
+    ['P / O','walk the port / look for contacts'],['M','comms panel'],
+    ['1–9','pick a decision option'],['Enter / Space','dismiss event pop-up'],
+    ['T','amber CRT theme'],['Esc','close modal / chat'],['?','this card']]
+   .map(r=>'<tr><td style="white-space:nowrap"><b>'+r[0]+'</b></td><td>'+r[1]+'</td></tr>').join('')+
+   '</tbody></table><div style="margin-top:12px;text-align:right;"><button class="primary" onclick="closeModal()">Close</button></div>');
+}
 /* ---------- Interactive star map (SVG hex grid, odd-q to match hexDist) ---------- */
-const SP_COLOR={A:'#4ea1ff',B:'#7fc4ff',C:'#cdd6e4',D:'#ffcf6b',E:'#c79a55',X:'#ff6b6b'};
+const SP_PALETTES={
+ std:{sp:{A:'#4ea1ff',B:'#7fc4ff',C:'#cdd6e4',D:'#ffcf6b',E:'#c79a55',X:'#ff6b6b'},
+  fillHere:'#0e2018',fillDest:'#11253f',fillIn:'#141e33',fill:'#0c111b',
+  strokeHere:'#5fd08a',strokeDest:'#4ea1ff',strokeIn:'#2f4368',stroke:'#1a2334',
+  txtHere:'#5fd08a',txtDest:'#9ec5ff',txt:'#9fb4d6',distIn:'#4ea1ff',dist:'#5a6679',
+  line:'#4ea1ff',empty:'#0b0f18',emptyStroke:'#161e2e'},
+ crt:{sp:{A:'#ffd23f',B:'#ffc46a',C:'#ffb000',D:'#c98200',E:'#9a6700',X:'#ff5c1a'},
+  fillHere:'#1c1200',fillDest:'#241500',fillIn:'#150d00',fill:'#0a0500',
+  strokeHere:'#ffd23f',strokeDest:'#ffb000',strokeIn:'#4a2e00',stroke:'#241700',
+  txtHere:'#ffd23f',txtDest:'#ffc46a',txt:'#c98f2e',distIn:'#ffb000',dist:'#7a5200',
+  line:'#ffb000',empty:'#070300',emptyStroke:'#1c1200'}};
+const SP_COLOR=SP_PALETTES.std.sp;
 function hexCenter(col,row,r){
   const SQ=Math.sqrt(3);
   return [1.5*r*(col-1)+r, SQ*r*((row-1)+(col%2===1?0.5:0))+SQ*r/2];
@@ -161,21 +191,22 @@ function renderMap(){
     const [cx,cy]=hexCenter(col,row,r);
     const w=byHex[col+'-'+row];
     const hexId=('0'+col).slice(-2)+('0'+row).slice(-2);
+    const P=SP_PALETTES[crtOn()?'crt':'std'];
     if(!w){
-      s+='<polygon points="'+hexPts(cx,cy,r-0.5)+'" fill="#0b0f18" stroke="#161e2e" stroke-width="1"><title>hex '+hexId+' — empty</title></polygon>';
+      s+='<polygon points="'+hexPts(cx,cy,r-0.5)+'" fill="'+P.empty+'" stroke="'+P.emptyStroke+'" stroke-width="1"><title>hex '+hexId+' — empty</title></polygon>';
       continue;
     }
     const d=hexDist(from,w);
     const isHere=w.id===G.here, isDest=w.id===G.dest, inRange=d>0&&d<=jr;
-    const fill=isHere?'#0e2018':isDest?'#11253f':inRange?'#141e33':'#0c111b';
-    const stroke=isHere?'#5fd08a':isDest?'#4ea1ff':inRange?'#2f4368':'#1a2334';
+    const fill=isHere?P.fillHere:isDest?P.fillDest:inRange?P.fillIn:P.fill;
+    const stroke=isHere?P.strokeHere:isDest?P.strokeDest:inRange?P.strokeIn:P.stroke;
     const nm=w.name.length>10?w.name.slice(0,9)+'…':w.name;
     s+='<g style="cursor:pointer" onclick="selectDest('+w.id+')">'+
       '<polygon points="'+hexPts(cx,cy,r-0.5)+'" fill="'+fill+'" stroke="'+stroke+'" stroke-width="'+(isHere||isDest?1.6:1)+'"/>'+
-      '<circle cx="'+cx+'" cy="'+(cy-4)+'" r="3.6" fill="'+(SP_COLOR[w.u.sp]||'#9aa7bb')+'"/>'+
-      (isHere?'<circle cx="'+cx+'" cy="'+(cy-4)+'" r="7" fill="none" stroke="#5fd08a" stroke-width="1"/>':'')+
-      '<text x="'+cx+'" y="'+(cy+7.5)+'" text-anchor="middle" font-size="6.2" font-family="inherit" fill="'+(isHere?'#5fd08a':isDest?'#9ec5ff':'#9fb4d6')+'">'+nm+'</text>'+
-      '<text x="'+cx+'" y="'+(cy+14.5)+'" text-anchor="middle" font-size="5.4" font-family="inherit" fill="'+(inRange?'#4ea1ff':'#5a6679')+'">'+(isHere?'◉ here':d+'pc'+(inRange?'':' ✕'))+'</text>'+
+      '<circle cx="'+cx+'" cy="'+(cy-4)+'" r="3.6" fill="'+(P.sp[w.u.sp]||P.txt)+'"/>'+
+      (isHere?'<circle cx="'+cx+'" cy="'+(cy-4)+'" r="7" fill="none" stroke="'+P.strokeHere+'" stroke-width="1"/>':'')+
+      '<text x="'+cx+'" y="'+(cy+7.5)+'" text-anchor="middle" font-size="6.2" font-family="inherit" fill="'+(isHere?P.txtHere:isDest?P.txtDest:P.txt)+'">'+nm+'</text>'+
+      '<text x="'+cx+'" y="'+(cy+14.5)+'" text-anchor="middle" font-size="5.4" font-family="inherit" fill="'+(inRange?P.distIn:P.dist)+'">'+(isHere?'◉ here':d+'pc'+(inRange?'':' ✕'))+'</text>'+
       '<title>'+w.name+' ('+hexId+')\n'+uwpString(w.u)+'\n'+(w.codes.map(c=>c+' = '+CODE_NAME[c]).join(', ')||'no trade codes')+'\n'+
         (isHere?'Current location':d+' parsec'+(d>1?'s':'')+(inRange?' — in jump range':' — beyond J'+jr))+'</title>'+
       '</g>';
@@ -183,7 +214,7 @@ function renderMap(){
   if(G.dest!=null&&G.dest!==G.here){
     const to=world(G.dest);
     if(to){ const [x1,y1]=hexCenter(from.col,from.row,r), [x2,y2]=hexCenter(to.col,to.row,r);
-      s+='<line x1="'+x1+'" y1="'+(y1-4)+'" x2="'+x2+'" y2="'+(y2-4)+'" stroke="#4ea1ff" stroke-width="1.2" stroke-dasharray="4 3" opacity="0.8"/>'; }
+      s+='<line x1="'+x1+'" y1="'+(y1-4)+'" x2="'+x2+'" y2="'+(y2-4)+'" stroke="'+SP_PALETTES[crtOn()?'crt':'std'].line+'" stroke-width="1.2" stroke-dasharray="4 3" opacity="0.8"/>'; }
   }
   el.innerHTML='<svg viewBox="0 0 '+W+' '+H+'" style="width:100%;display:block" xmlns="http://www.w3.org/2000/svg">'+s+'</svg>';
 }
@@ -448,7 +479,8 @@ function showHelp(){
    '<p class="hint"><b>Events have teeth.</b> World, Port and Jump events pop up as they happen and cost or earn real credits, time and cargo. Some present a <b>decision</b> — pick an option to continue (a decision can’t be dismissed). A history of recent events stays in the Bridge panel. Your <b>crew’s skills</b> (see Crew) are rolled to resolve many of them: a Medic prevents quarantines and doctor’s bills, an Engineer halves repair costs, the captain’s Leadership keeps morale (and your sale prices) up.</p>'+
    '<p class="hint"><b>Your crew are people.</b> Each has traits, three goals, hidden savings, a health pool (STR+DEX+END), and relationship scores (−100..100) with you and each other — the average is their <b>morale</b>, and it drives what they do on their own time: maintain the drive, work side jobs, run little trades from their quarters… or skim your cargo, smuggle passengers, sabotage a feuding crewmate’s handiwork, demand raises, and quit. Locals on every world (tap their names on the Current World card) request goods at a premium, offer and ask for <b>loans</b>, propose barters, and remember how you treat them — see <b>Commitments</b> on the Bridge tab for everything you owe and are owed.</p>'+
    '<p class="hint"><b>Optional AI (⚙ AI):</b> paste your own Anthropic API key to <b>talk with anyone</b> in freeform chat, have crew and locals react to your moves, and let Claude pick their actions in character. Without a key the built-in behavior engine runs everything the same — chat is the only thing that needs the key.</p>'+
-   '<div style="margin-top:14px;text-align:right;"><button class="primary" onclick="closeModal()">Got it</button></div>');
+   '<p class="hint">Fully keyboard-navigable — press <b>?</b> for the key map. Prefer green phosphor was never an option, but <b>[T]</b> gets you amber.</p>'+
+   '<div style="margin-top:14px;text-align:right;"><button onclick="showKeysHelp()">Keyboard</button> <button class="primary" onclick="closeModal()">Got it</button></div>');
 }
 function confirmNewGame(){
   openModal('<h2>NEW GAME</h2><p>Choose your starship. A fresh subsector will be generated.</p>'+

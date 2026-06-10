@@ -326,7 +326,11 @@ function resolveChatOffer(i,k){
 function showSettings(){
   const u=aiUsage(); const prov=aiProvider();
   const inp='style="background:var(--cell);border:1px solid var(--grid);color:var(--ink);border-radius:4px;padding:8px;font-family:inherit"';
-  openModal('<h2>SETTINGS — AI</h2>'+
+  openModal('<h2>SETTINGS</h2>'+
+   '<div class="row" style="margin:4px 0 12px"><span class="hint" style="width:70px">Theme</span>'+
+   '<button '+(crtOn()?'':'class="primary" ')+'onclick="setTheme(\'std\')">Standard</button>'+
+   '<button '+(crtOn()?'class="primary" ':'')+'onclick="setTheme(\'crt\')">Amber CRT</button>'+
+   '<span class="hint">([T] toggles · [?] keyboard map)</span></div>'+
    '<p class="hint">Bring your own key to give the crew and locals a voice (chat), let the model pick their actions in character, and get reaction pop-ups. '+
    'The key is stored <b>only in this browser</b> (localStorage), never in the save file, and is sent only to the provider you pick. '+
    'Without a key the game runs the same on its built-in behavior engine — chat is the only thing disabled.</p>'+

@@ -121,21 +121,22 @@
   .chatmsg{max-width:85%; margin:5px 0; padding:7px 10px; border-radius:8px; font-size:12.5px; line-height:1.5;}
   .chatmsg.me{margin-left:auto; background:#163a5e; border:1px solid #2f6ea8;}
   .chatmsg.them{margin-right:auto; background:#1d1730; border:1px solid #3a2f55; color:#d9cdf2;}
-  .chatpop{position:fixed; left:14px; bottom:74px; z-index:46; display:none;
+  .chatpop{position:fixed; right:14px; bottom:74px; z-index:46; display:none;
     max-width:320px; background:#1d1730; border:1px solid #8a6ad0; border-radius:8px;
     padding:10px 12px; font-size:12.5px; line-height:1.5; color:#d9cdf2;
     box-shadow:0 4px 30px #0009;}
   .chatpop .t{color:#c5a8ff; font-weight:600; font-size:11px; text-transform:uppercase;
     letter-spacing:1px; margin-bottom:4px;}
-  .chatdock{position:fixed; left:14px; bottom:14px; z-index:45; width:48px; height:48px;
+  .chatdock{position:fixed; right:14px; bottom:14px; z-index:45; width:48px; height:48px;
     border-radius:50%; background:#163a5e; border:1px solid #2f6ea8; display:flex;
     align-items:center; justify-content:center; font-size:20px; cursor:pointer;
     box-shadow:0 4px 20px #0008; user-select:none;}
-  .chatdock:hover{background:#1d4d7d;}
+  .chatdock:hover{background:#1d4d7d; box-shadow:0 0 18px #4ea1ff66;}
+  .chatdock svg{filter:drop-shadow(0 0 4px #4ea1ff88);}
   .chatbadge{position:absolute; top:-4px; right:-4px; background:#ff6b6b; color:#fff;
     border-radius:9px; min-width:18px; height:18px; display:flex; align-items:center;
     justify-content:center; font-size:11px; font-weight:600; padding:0 4px;}
-  .chatpanel{position:fixed; left:14px; bottom:70px; z-index:45;
+  .chatpanel{position:fixed; right:14px; bottom:70px; z-index:45;
     width:min(360px,calc(100vw - 28px)); height:min(480px,65vh);
     background:var(--panel); border:1px solid #2f6ea8; border-radius:10px;
     display:flex; flex-direction:column; box-shadow:0 8px 40px #000a; overflow:hidden;}

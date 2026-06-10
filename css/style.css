@@ -271,3 +271,15 @@
   body.crt .jumpscreen h2{color:#ffc23f;}
   body.crt .jumpscreen .event{background:#120b02dd;}
   body.crt .pos{color:#ffd23f;} body.crt .neg{color:#ff5c1a;}
+
+  /* ---------- fix: cards must stretch to their grid row or nothing scrolls ---------- */
+  @media(min-width:900px){
+    body{display:flex; flex-direction:column;}
+    .topbar,.tabs{flex:none;}
+    .content{flex:1 1 0; min-height:0; height:auto; overflow:hidden;}
+    #tab-trade.active,#tab-map.active,#tab-bridge.active{
+      align-items:stretch; gap:12px;}
+    .tabpage.active .card{margin-bottom:0; height:100%; min-height:0; overflow:hidden;}
+    .card h3{flex:none;}
+  }
+  .card .body,#market,#hold,#worldlist,#commitments,.chatbody,.log{-webkit-overflow-scrolling:touch;}

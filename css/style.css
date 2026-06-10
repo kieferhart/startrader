@@ -166,3 +166,32 @@
   ::-webkit-scrollbar{width:9px;height:9px;}
   ::-webkit-scrollbar-thumb{background:#26324a; border-radius:5px;}
   ::-webkit-scrollbar-track{background:transparent;}
+
+  /* ---------- jumpspace transit screen ---------- */
+  .jumpscreen{position:fixed; inset:0; z-index:30; overflow-y:auto;
+    background:
+      radial-gradient(ellipse 80% 50% at 50% -10%, #1a1440cc, transparent),
+      radial-gradient(ellipse 60% 40% at 80% 110%, #0e2a4acc, transparent),
+      linear-gradient(180deg,#070510,#0b0e1a 60%,#070510);}
+  .jumpscreen::before{content:''; position:fixed; inset:0; pointer-events:none;
+    background-image:
+      radial-gradient(1px 1px at 12% 22%, #9ec5ff 50%, transparent 51%),
+      radial-gradient(1px 1px at 34% 71%, #c5a8ff 50%, transparent 51%),
+      radial-gradient(1.5px 1.5px at 58% 35%, #fff 50%, transparent 51%),
+      radial-gradient(1px 1px at 73% 84%, #9ec5ff 50%, transparent 51%),
+      radial-gradient(1px 1px at 89% 12%, #d9cdf2 50%, transparent 51%),
+      radial-gradient(1.5px 1.5px at 21% 88%, #fff 50%, transparent 51%),
+      radial-gradient(1px 1px at 45% 8%, #c5a8ff 50%, transparent 51%),
+      radial-gradient(1px 1px at 67% 56%, #9ec5ff 50%, transparent 51%);
+    animation:jdrift 14s linear infinite; opacity:.7;}
+  @keyframes jdrift{from{transform:translateY(0) scale(1);}to{transform:translateY(40px) scale(1.06);}}
+  .jumpscreen .jwrap{max-width:680px; margin:0 auto; padding:34px 14px 90px; position:relative;}
+  .jumpscreen h2{font-size:15px; letter-spacing:6px; color:#c5a8ff; text-align:center;
+    text-transform:uppercase; animation:jpulse 3s ease-in-out infinite;}
+  @keyframes jpulse{0%,100%{opacity:.65;}50%{opacity:1;}}
+  .jumpscreen .jroute{text-align:center; color:#7b8aa3; font-size:12px; margin:8px 0 22px;}
+  .jumpscreen .jroute b{color:#dfe8f7;}
+  .jumpscreen .event{background:#160f26dd;}
+  .jumpscreen .jemerge{position:fixed; left:0; right:0; bottom:0; padding:12px;
+    background:linear-gradient(0deg,#070510f0,#07051000); text-align:center;}
+  .jumpscreen .jemerge button{font-size:14px; padding:12px 26px; letter-spacing:1px;}

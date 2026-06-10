@@ -1,7 +1,31 @@
 /* ---------- Rendering ---------- */
-function renderAll(){ renderTabs(); renderTop(); renderMap(); renderWorlds(); renderCurrentWorld(); renderMarket(); renderHold(); renderLog(); renderJumpBtn(); renderFuel(); renderCommitments(); renderPendingChoice();
+function renderAll(){ renderTabs(); renderTop(); renderMap(); renderWorlds(); renderCurrentWorld(); renderMarket(); renderHold(); renderLog(); renderJumpBtn(); renderFuel(); renderCommitments(); renderJumpScreen(); renderPendingChoice();
   if(typeof updateChatBadge==='function'){ updateChatBadge(); if(typeof CHAT_OPEN!=='undefined'&&CHAT_OPEN&&!CHAT_CUR)renderChatPanel(); } }
 
+/* ---------- Jumpspace transit screen ---------- */
+function renderJumpScreen(){
+  const el=document.getElementById('jumpscreen'); if(!el)return;
+  const t=G&&G.transit;
+  if(!t){ el.style.display='none'; return; }
+  el.style.display='block';
+  const to=world(t.to);
+  const feed=(t.log||[]).map(e=>'<div class="event"><div class="t">'+e.title+(e.roll&&e.roll!=='—'?' · roll '+e.roll:'')+'</div>'+e.text+'</div>').join('')
+    ||'<div class="hint" style="text-align:center;padding:20px">The drives hum. Outside the viewports, jumpspace does what jumpspace does — best not to look too long.</div>';
+  const pc=G.pendingChoice;
+  const choice=pc?('<div class="event glow" style="border-color:#ffcf6b"><div class="t" style="color:#ffcf6b">'+pc.title+' · decision</div>'+pc.text+
+    '<div class="row" style="margin-top:8px;flex-direction:column;align-items:stretch;gap:6px">'+
+    pc.options.map(o=>'<button onclick="resolveChoice(\''+o.k+'\')">'+o.label+'</button>').join('')+'</div></div>'):'';
+  el.innerHTML='<div class="jwrap">'+
+    '<h2>Jumpspace Transit</h2>'+
+    '<div class="jroute"><b>'+t.from+'</b> → <b>'+(to?to.name:'?')+'</b> · '+t.days+' day'+(t.days>1?'s':'')+' in the grey · week '+(Math.floor(G.day/7)+1)+'</div>'+
+    feed+choice+
+    '<div class="hint" style="text-align:center;margin-top:14px">The comms dock still works — a week in jump is a long time to not talk to anyone.</div>'+
+    '</div>'+
+    '<div class="jemerge"><button class="primary" '+(pc?'disabled title="Deal with the situation first"':'')+' onclick="finishJump()">Emerge at '+(to?to.name:'destination')+' ▶</button></div>';
+}
+function codeChip(c){
+  return '<span class="code'+(BADCODE.includes(c)?' bad':'')+'" title="'+(CODE_DESC[c]||CODE_NAME[c]||c)+'">'+c+'</span>';
+}
 /* ---------- Fuel (SRD tankage: jump 0.1xhull/pc; plant burns weekly) ---------- */
 function renderFuel(){
   const el=document.getElementById('fuelbox'); if(!el)return;
@@ -96,7 +120,7 @@ function renderMap(){
       (isHere?'<circle cx="'+cx+'" cy="'+(cy-4)+'" r="7" fill="none" stroke="#5fd08a" stroke-width="1"/>':'')+
       '<text x="'+cx+'" y="'+(cy+7.5)+'" text-anchor="middle" font-size="6.2" font-family="inherit" fill="'+(isHere?'#5fd08a':isDest?'#9ec5ff':'#9fb4d6')+'">'+nm+'</text>'+
       '<text x="'+cx+'" y="'+(cy+14.5)+'" text-anchor="middle" font-size="5.4" font-family="inherit" fill="'+(inRange?'#4ea1ff':'#5a6679')+'">'+(isHere?'◉ here':d+'pc'+(inRange?'':' ✕'))+'</text>'+
-      '<title>'+w.name+' ('+hexId+')\n'+uwpString(w.u)+' · '+(w.codes.join(' ')||'no codes')+'\n'+
+      '<title>'+w.name+' ('+hexId+')\n'+uwpString(w.u)+'\n'+(w.codes.map(c=>c+' = '+CODE_NAME[c]).join(', ')||'no trade codes')+'\n'+
         (isHere?'Current location':d+' parsec'+(d>1?'s':'')+(inRange?' — in jump range':' — beyond J'+jr))+'</title>'+
       '</g>';
   }
@@ -129,7 +153,8 @@ function renderWorlds(){
     const d=hexDist(from,w); const inrange=d<=jr&&d>0;
     return '<div class="w'+(w.id===G.here?' here':'')+'" onclick="selectDest('+w.id+')" style="cursor:pointer">'+
       '<div><div class="nm">'+w.name+(w.id===G.here?' ◉':'')+'</div>'+
-      '<div class="meta">'+uwpString(w.u)+' · '+(w.codes.join(' ')||'—')+'</div></div>'+
+      '<div class="meta"><span title="Starport/Size/Atmosphere/Hydro/Pop/Gov/Law-TechLevel">'+uwpString(w.u)+'</span> · '+
+      (w.codes.map(c=>'<span title="'+(CODE_DESC[c]||CODE_NAME[c])+'">'+c+'</span>').join(' ')||'—')+'</div></div>'+
       '<div class="dist">'+(w.id===G.here?'here':(d+'pc'+(inrange?'':' ✕')))+'</div></div>';
   }).join('');
 }
@@ -137,12 +162,12 @@ function renderCurrentWorld(){
   const w=here();
   document.getElementById('cw-name').textContent=w.name;
   document.getElementById('t-loc').textContent=w.name;
-  const codes=w.codes.map(c=>'<span class="code'+(BADCODE.includes(c)?' bad':'')+'" title="'+CODE_NAME[c]+'">'+c+'</span>').join('');
+  const codes=w.codes.map(c=>codeChip(c)).join('');
   const ppl=(typeof peopleHere==='function'?peopleHere():[]).map(ch=>
     '<span class="code" style="cursor:pointer" title="'+ch.role+' · standing '+(shipRel(ch)>0?'+':'')+shipRel(ch)+'" '+
     'onclick="showChat(\'cast\',\''+ch.name+'\')">'+ch.name+'</span>').join(' ');
   document.getElementById('cw-detail').innerHTML=
-    '<div class="uwp">'+uwpString(w.u)+'</div>'+
+    '<div class="uwp" title="UWP: Starport '+w.u.sp+' · Size '+w.u.size+' · Atmosphere '+w.u.atmo+' · Hydrographics '+w.u.hydro+'0% · Population 10^'+w.u.pop+' · Government '+w.u.gov+' · Law '+w.u.law+' · Tech Level '+w.u.tl+'">'+uwpString(w.u)+'</div>'+
     '<div class="hint">Starport '+w.u.sp+' · Pop 10^'+w.u.pop+' · Law '+w.u.law+' · TL '+w.u.tl+'</div>'+
     '<div class="codes">'+(codes||'<span class="muted">no special trade codes</span>')+'</div>'+
     (ppl?'<div class="hint" style="margin-top:8px">People here (tap to talk):</div><div class="codes">'+ppl+'</div>':'');

@@ -55,6 +55,7 @@ function load(){ try{const s=localStorage.getItem(SAVE); if(!s)return null; cons
     if(!g.loans)g.loans=[]; if(!g.lent)g.lent=[]; if(!g.requests)g.requests=[];
     if(!g.chats)g.chats={}; if(!g.chatUnread)g.chatUnread={}; if(!g.visited)g.visited=[g.here];
     if(!g.captain)g.captain=genCaptain();
+    g.crew.forEach(c=>{ if(c.position==='Captain / Pilot'||c.position==='Captain')c.position='Pilot / First Officer'; });  // the PLAYER is the captain
     augmentCrewAll(g.crew); g.crew.forEach(c=>augmentHealth(c));
     (g.cast||[]).forEach(c=>augmentCast(c)); }
   return g; }catch(e){return null;} }
@@ -243,19 +244,29 @@ function doJump(){
   document.getElementById('event-area').innerHTML='';   // fresh feed for the new leg
   G.fuel=Math.round((G.fuel-need)*100)/100;
   logEntry('Jumped '+dist+' parsec'+(dist>1?'s':'')+' to '+to.name+' — burned '+need+'t of '+(G.fuelUnrefined?'unrefined':'refined')+' fuel.','muted');
-  let jdelay=0, jmsg='';
+  // enter jumpspace: the week in transit gets its own screen, not pop-ups
+  G.transit={to:G.dest, from:from.name, log:[], days:7};
+  G.dest=null;
+  let jdelay=0;
   if(G.fuelUnrefined){                          // SRD: unrefined fuel is −2 on the jump check
     const roll=_2d6()-2+Math.min(2,crewSkill('Engineer'));
     if(roll<=0){ const rep=1000*d6(); jdelay=d6(); pay(rep,'incidentals','Misjump on dirty fuel — drive damage');
-      jmsg='MISJUMP. The drive screams on unrefined hydrogen and wrenches you out of jump space the hard way — '+jdelay+' extra days adrift and '+cr(rep)+' in drive repairs.'; }
+      showEvent('Jump Transition','—','MISJUMP. The drive screams on unrefined hydrogen and wrenches you out of jump space the hard way — '+jdelay+' extra days adrift and '+cr(rep)+' in drive repairs.'); }
     else if(roll<8){ jdelay=Math.ceil(d6()/2);
-      jmsg='Rough transition on unrefined fuel — you emerge well off the mark. '+jdelay+' extra day'+(jdelay>1?'s':'')+' limping in-system.'; }
+      showEvent('Jump Transition','—','Rough transition on unrefined fuel — you emerge well off the mark. '+jdelay+' extra day'+(jdelay>1?'s':'')+' limping in-system.'); }
   }
+  G.transit.days=7+jdelay;
   advanceTime(7+jdelay);
-  if(jmsg)showEvent('Jump Transition','—',jmsg);
   rollJumpEvent();
   peopleOnJump();                              // crew act in transit; sabotage bites here
-  G.here=G.dest; G.dest=null;
+  save(); renderAll();
+}
+function finishJump(){
+  const t=G.transit; if(!t)return;
+  if(G.pendingChoice){ return; }               // the situation in jumpspace needs answering first
+  const to=world(t.to);
+  G.transit=null;
+  G.here=t.to;
   generateMarket('port');
   logEntry('Arrived at '+to.name+'. '+(G.hold.length?'Local buyers await your cargo.':'Hold is empty — find something to trade.'),'start');
   resolveArrivalJobs();

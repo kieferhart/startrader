@@ -39,12 +39,12 @@ const SKILLPOOL={
 // Salaries per Cepheus Engine "Crew Salaries" table (Pilot 6k, Navigator 5k,
 // Engineer 4k, Steward 3k, Medic 2k). Ship.salaries are summed from this live.
 const CREW_TMPL={
- courier:[['Captain / Pilot',6000,'Captain'],['Navigator',5000,'Navigator'],['Engineer',4000,'Engineer']],
- yacht:[['Captain / Pilot',6000,'Captain'],['Navigator',5000,'Navigator'],['Engineer',4000,'Engineer']],
- trader:[['Captain / Pilot',6000,'Captain'],['Navigator',5000,'Navigator'],['Engineer',4000,'Engineer'],['Medic',2000,'Medic'],['Steward',3000,'Steward']],
- frontier:[['Captain / Pilot',6000,'Captain'],['Navigator',5000,'Navigator'],['Engineer',4000,'Engineer'],['Gunner',1000,'Gunner'],['Gunner',1000,'Gunner'],['Gunner',1000,'Gunner'],['Steward',3000,'Steward'],['Steward',3000,'Steward']],
- freighter:[['Captain / Pilot',6000,'Captain'],['Navigator',5000,'Navigator'],['Engineer',4000,'Engineer']],
- easy:[['Captain / Pilot',0,'Captain'],['Navigator',0,'Navigator'],['Engineer',0,'Engineer']],
+ courier:[['Pilot / First Officer',6000,'Captain'],['Navigator',5000,'Navigator'],['Engineer',4000,'Engineer']],
+ yacht:[['Pilot / First Officer',6000,'Captain'],['Navigator',5000,'Navigator'],['Engineer',4000,'Engineer']],
+ trader:[['Pilot / First Officer',6000,'Captain'],['Navigator',5000,'Navigator'],['Engineer',4000,'Engineer'],['Medic',2000,'Medic'],['Steward',3000,'Steward']],
+ frontier:[['Pilot / First Officer',6000,'Captain'],['Navigator',5000,'Navigator'],['Engineer',4000,'Engineer'],['Gunner',1000,'Gunner'],['Gunner',1000,'Gunner'],['Gunner',1000,'Gunner'],['Steward',3000,'Steward'],['Steward',3000,'Steward']],
+ freighter:[['Pilot / First Officer',6000,'Captain'],['Navigator',5000,'Navigator'],['Engineer',4000,'Engineer']],
+ easy:[['Pilot / First Officer',0,'Captain'],['Navigator',0,'Navigator'],['Engineer',0,'Engineer']],
 };
 const NPC_REL={11:'Bickers with',12:'Secretly in love with',13:'Secretly hates',14:'Competitive rival of',
  15:'Blames for a past event',16:'Blames for a past event',21:'Knows a dark secret of',22:'Ignores or ridicules',

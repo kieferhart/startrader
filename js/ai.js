@@ -171,7 +171,9 @@ function showChat(kind,name){
 }
 function chatRoster(){
   const rows=[]; const seen=new Set();
-  (G.crew||[]).forEach(c=>{ rows.push({kind:'crew',name:c.name,sub:c.position+' \u00b7 '+moraleWord(morale(c)),here:true}); seen.add(chatKey('crew',c.name)); });
+  const capName=G.captain?G.captain.name:'You';
+  (G.crew||[]).forEach(c=>{ if(c.name===capName)return;        // you can't comm yourself
+    rows.push({kind:'crew',name:c.name,sub:c.position+' \u00b7 '+moraleWord(morale(c)),here:true}); seen.add(chatKey('crew',c.name)); });
   peopleHere().forEach(ch=>{ rows.push({kind:'cast',name:ch.name,sub:ch.role+' \u00b7 '+ch.world,here:true}); seen.add(chatKey('cast',ch.name)); });
   Object.keys(G.chats||{}).forEach(k=>{
     if(seen.has(k))return;

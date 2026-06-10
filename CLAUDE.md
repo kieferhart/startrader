@@ -134,6 +134,14 @@ People-sim rules that matter:
   - `crewSkill(...names)` / `skillCheck(target,...names)` — crew skills are mechanical:
     best matching skill level is the DM on 2D6 vs target (Medic prevents quarantine /
     bills, Engineer halves repairs, Leadership guards morale, etc.).
+  - **Jumpspace transit screen** — `doJump` only *departs* (fuel, time, jump
+    event, crew tick) and sets `G.transit={to,from,log,days}`; `finishJump()`
+    arrives (market, arrival jobs, residents, bank trouble). While `G.transit`
+    is set, `showEvent` appends to `transit.log` and `offerChoice` renders the
+    decision inline on the full-screen overlay (`renderJumpScreen`, z-30 — chat
+    dock and modals sit above it); emergence is blocked until the pending
+    decision resolves. Transit persists across reloads. Tests must call
+    `finishJump()` after `doJump()` (see the JUMP() helper pattern).
   - **Event pop-ups** — events surface as modals via a transient queue (`EVQ`,
     `pumpEvents`/`evNext`, layer `#ev-bg` separate from the Ship/Crew modal).
     `showEvent` both queues a pop-up and prepends a history card to the Bridge feed

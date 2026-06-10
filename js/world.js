@@ -60,6 +60,27 @@ function tradeCodes(u){
 const CODE_NAME={Ag:'Agricultural',As:'Asteroid',Ba:'Barren',De:'Desert',Fl:'Fluid Oceans',
  Ga:'Garden',Hi:'High Pop',Ht:'High Tech',Ic:'Ice-Capped',In:'Industrial',Lo:'Low Pop',
  Lt:'Low Tech',Na:'Non-Agri',Ni:'Non-Industrial',Po:'Poor',Ri:'Rich',Va:'Vacuum',Wa:'Water World'};
+// hover blurbs: what each code means for a trader (drives pDM/rDM in data.js)
+const CODE_DESC={
+ Ag:'Agricultural — breadbasket world. Farm goods are CHEAP here: animal products, groceries, liquor, textiles, luxuries. Buy food, sell machinery.',
+ As:'Asteroid belt — vacuum mining culture. Ores and precious metals come cheap; survival gear matters.',
+ Ba:'Barren — essentially no population, no market to speak of.',
+ De:'Desert — dry world, little open water (no free water refueling).',
+ Fl:'Fluid oceans — seas of something other than water. Harsh; survival gear sells.',
+ Ga:'Garden world — pleasant and fertile. Luxuries, furniture and farm goods are cheap here.',
+ Hi:'High population (billions) — a hungry mass market. PAYS WELL for foodstuffs, collectibles, medical equipment and military gear.',
+ Ht:'High Tech (TL12+) — advanced industry. Electronics, computers, robots, cyberware and pharma are CHEAP here. Buy tech, haul it to Ni/Po worlds.',
+ Ic:'Ice-capped — frozen rock. Precious metals mined cheap.',
+ In:'Industrial — factory world. Manufactured goods and machinery are CHEAP; PAYS WELL for raw materials, crystals, radioactives and (quietly) vices.',
+ Lo:'Low population — a few thousand souls at most; thin market.',
+ Lt:'Low Tech — pre-industrial society. Pays for tools and simple manufactured goods.',
+ Na:'Non-Agricultural — cannot feed itself. PAYS WELL for food, textiles and petrochemicals. Bring groceries, leave rich.',
+ Ni:'Non-Industrial — cannot make its own goods. PAYS WELL for electronics, machinery, vehicles, weapons. The classic place to SELL.',
+ Po:'Poor — scraping by. Pays for weapons and advanced goods, but money is tight; little worth buying.',
+ Ri:'Rich — wealthy consumers. PAYS WELL for luxuries, gems, gambling gear; their own luxuries are also traded cheap.',
+ Va:'Vacuum — airless world. Survival gear and polymers in demand.',
+ Wa:'Water world — all ocean. Pharmaceuticals come cheap; free water for fuel skimming.',
+};
 const BADCODE=['Ba','Po','Va','As'];
 function uwpString(u){ return u.sp+ehex(u.size)+ehex(u.atmo)+ehex(u.hydro)+ehex(u.pop)+ehex(u.gov)+ehex(u.law)+'-'+ehex(u.tl); }
 

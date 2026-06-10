@@ -266,6 +266,8 @@ function showEvent(title,roll,text){
   text+=eventFlavor(EV_TBL[title],roll);
   const a=document.getElementById('event-area');
   a.innerHTML='<div class="event"><div class="t">'+title+' · roll '+roll+'</div>'+text+'</div>'+ (a?a.innerHTML:'');
+  if(G&&G.transit){ G.transit.log.push({title,roll,text});      // in jumpspace: feed, not pop-up
+    if(typeof renderJumpScreen==='function')renderJumpScreen(); return; }
   EVQ.push({title,roll,text}); pumpEvents();
 }
 
@@ -292,6 +294,7 @@ function offerChoice(kind,title,roll,text,data,options){
   G.choiceSeq=(G.choiceSeq||0)+1;
   G.pendingChoice={kind,title,roll,text,data,options,uid:'ch'+G.choiceSeq};
   save();
+  if(G.transit){ if(typeof renderJumpScreen==='function')renderJumpScreen(); renderAll(); return; }
   EVQ.push({choice:true}); pumpEvents();
   renderAll();
 }
@@ -311,6 +314,8 @@ function resolveChoice(k){
   }
   const a=document.getElementById('event-area');
   a.innerHTML='<div class="event"><div class="t">'+pc.title+' · resolved</div>'+out+'</div>'+String(a.innerHTML);
+  if(G.transit){ G.transit.log.push({title:pc.title+' · resolved',roll:'—',text:out});
+    if(typeof renderJumpScreen==='function')renderJumpScreen(); }
   EV_CHOICE=false;
   if(EV_OPEN){ evShow('<div class="evt">'+pc.title+' · resolved</div>'+
     '<div style="margin:12px 0;line-height:1.6">'+out+'</div>'+

@@ -1,6 +1,6 @@
 /* ---------- Rendering ---------- */
 function renderAll(){ renderTabs(); renderTop(); renderMap(); renderWorlds(); renderCurrentWorld(); renderMarket(); renderHold(); renderLog(); renderJumpBtn(); renderFuel(); renderCommitments(); renderJumpScreen(); renderPendingChoice();
-  if(typeof updateChatBadge==='function'){ updateChatBadge(); if(typeof CHAT_OPEN!=='undefined'&&CHAT_OPEN&&!CHAT_CUR)renderChatPanel(); } }
+  if(typeof updateChatBadge==='function'){ updateChatBadge(); renderChatPanel(); } }
 
 /* ---------- Jumpspace transit screen ---------- */
 function goodsWantedAt(w){ const out=[];

@@ -161,7 +161,8 @@ function chatUnreadTotal(){ return Object.values(chatUnreadMap()).reduce((a,b)=>
 function markUnread(kind,name){ const m=chatUnreadMap(); const k=chatKey(kind,name); m[k]=(m[k]||0)+1; updateChatBadge(); }
 function updateChatBadge(){ const b=document.getElementById('chatbadge'); if(!b)return;
   const n=chatUnreadTotal(); b.style.display=n?'flex':'none'; b.textContent=n; }
-function toggleChatPanel(){ CHAT_OPEN=!CHAT_OPEN; if(CHAT_OPEN)dismissChatPop(); renderChatPanel(); }
+function chatDocked(){ try{return !!(window.matchMedia&&window.matchMedia('(min-width:1280px)').matches);}catch(e){return false;} }
+function toggleChatPanel(){ if(chatDocked()){ openChatList(); return; } CHAT_OPEN=!CHAT_OPEN; if(CHAT_OPEN)dismissChatPop(); renderChatPanel(); }
 function openChatList(){ CHAT_CUR=null; renderChatPanel(); }
 function showChat(kind,name){
   CHAT_CUR={kind,name}; CHAT_OPEN=true;
@@ -185,12 +186,14 @@ function chatRoster(){
 }
 function renderChatPanel(extra){
   const p=document.getElementById('chatpanel'); if(!p)return;
-  p.style.display=CHAT_OPEN?'flex':'none';
-  if(!CHAT_OPEN)return;
+  const docked=chatDocked();
+  if(docked)CHAT_OPEN=true;
+  p.style.display=(CHAT_OPEN||docked)?'flex':'none';
+  if(!CHAT_OPEN&&!docked)return;
   const head=document.getElementById('chathead'), body=document.getElementById('chatbody'), foot=document.getElementById('chatfoot');
   if(!head||!body||!foot)return;
   if(!CHAT_CUR){
-    head.innerHTML='<b>COMMS</b><span class="x" style="margin-left:auto" onclick="toggleChatPanel()">\u2715</span>';
+    head.innerHTML='<b>COMMS</b>'+(chatDocked()?'':'<span class="x" style="margin-left:auto" onclick="toggleChatPanel()">\u2715</span>');
     const m=chatUnreadMap();
     body.innerHTML=chatRoster().map(r=>{
       const k=chatKey(r.kind,r.name); const log=(G.chats||{})[k]||[];
@@ -207,7 +210,7 @@ function renderChatPanel(extra){
   head.innerHTML='<span class="x" onclick="openChatList()">\u2039</span><b>'+name+'</b>'+
     '<span class="hint" style="margin-left:6px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+
     (c?(kind==='crew'?(c.position+' \u00b7 '+moraleWord(morale(c))+' \u00b7 '+hpWord(c)):(c.role+(present?'':' \u00b7 on '+c.world))):'gone')+'</span>'+
-    '<span class="x" style="margin-left:auto" onclick="toggleChatPanel()">\u2715</span>';
+    (chatDocked()?'<span style="margin-left:auto"></span>':'<span class="x" style="margin-left:auto" onclick="toggleChatPanel()">\u2715</span>');
   const log=chatLog(kind,name);
   body.innerHTML=(log.map(function(m,i){
     let inner='<div class="chatmsg '+(m.who==='you'?'me':'them')+'">'+m.text;
@@ -277,6 +280,7 @@ function chatAcceptOffer(type,amt){
 function showChatPop(kind,name,line){
   if(CHAT_OPEN&&CHAT_CUR&&CHAT_CUR.kind===kind&&CHAT_CUR.name===name){ renderChatPanel(); return; }
   markUnread(kind,name);
+  if(chatDocked()){ renderChatPanel(); return; }   // the column is already on screen
   let el=document.getElementById('chatpop');
   if(!el){ el=document.createElement?document.createElement('div'):null;
     if(el){ el.id='chatpop'; el.className='chatpop'; document.body.appendChild(el); } }

@@ -52,6 +52,8 @@ function genCrew(shipKey){
     if(r===34||r===54){ c.rel={desc:'Loner',target:null}; }
     else { const others=crew.filter((_,j)=>j!==i); const tgt=others[R(others.length)-1];
       c.rel={desc, target:tgt?tgt.name:null}; } });
+  augmentCrewAll(crew);                  // traits, goals, wallets, pairwise rels (people.js)
+  crew.forEach(c=>augmentHealth(c));
   return crew;
 }
 

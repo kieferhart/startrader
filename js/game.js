@@ -1,5 +1,6 @@
 /* ---------- Books (P&L + balance sheet) ---------- */
-function emptyBooks(){ return {sales:0,otherIncome:0,cogs:0,fuel:0,mortgage:0,salaries:0,overhead:0,fines:0,incidentals:0,spoilage:0}; }
+function emptyBooks(){ return {sales:0,otherIncome:0,cogs:0,fuel:0,mortgage:0,salaries:0,overhead:0,fines:0,incidentals:0,spoilage:0,
+  loanIn:0,interest:0,lentOut:0,shrinkage:0}; }
 function book(cat,amt){ if(!G.books)G.books=emptyBooks(); G.books[cat]=(G.books[cat]||0)+amt; }
 function inventoryValue(){ return G.hold.reduce((a,h)=>a+h.ppt*h.tons,0); }
 function netWorth(){ return G.credits+inventoryValue(); }
@@ -45,7 +46,12 @@ function save(){ try{localStorage.setItem(SAVE,JSON.stringify(G));}catch(e){} }
 function load(){ try{const s=localStorage.getItem(SAVE); if(!s)return null; const g=JSON.parse(s);
   if(g&&g.worlds){ if(!g.books)g.books=emptyBooks(); if(!g.crew||!g.crew.length)g.crew=genCrew(g.ship);
     if(!g.mods)g.mods=emptyMods(); if(!g.contacts)g.contacts=[]; if(!g.tab)g.tab='trade';
-    if(!g.cast)g.cast=[]; if(g.castSeq==null)g.castSeq=0; }
+    if(!g.cast)g.cast=[]; if(g.castSeq==null)g.castSeq=0;
+    if(!g.loans)g.loans=[]; if(!g.lent)g.lent=[]; if(!g.requests)g.requests=[];
+    if(!g.chats)g.chats={}; if(!g.visited)g.visited=[g.here];
+    if(!g.captain)g.captain=genCaptain();
+    augmentCrewAll(g.crew); g.crew.forEach(c=>augmentHealth(c));
+    (g.cast||[]).forEach(c=>augmentCast(c)); }
   return g; }catch(e){return null;} }
 
 function newGame(shipKey){
@@ -70,10 +76,13 @@ function newGame(shipKey){
     mods:emptyMods(), pendingChoice:null, choiceSeq:0,
     courier:null, smuggleJob:null, passenger:null,
     cast:[], castSeq:0,
+    loans:[], lent:[], requests:[], chats:{}, visited:[start.id],
+    captain:genCaptain(), lastCrewTick:0,
     tab:'trade', log:[]
   };
   logEntry('Game begins at '+start.name+' aboard the '+ship.name+'. Starting capital '+cr(250000)+'.','start');
   generateMarket('port');
+  ensureResidents();                          // the home port has people in it
   save(); renderAll();
 }
 
@@ -111,6 +120,8 @@ function searchCargo(mode){
   generateMarket(mode);
   logEntry('Searched for cargo '+(mode==='away'?'away from the port':'at the starport')+'.','muted');
   if(mode==='away'){ rollWorldEncounter(); }
+  peoplePortWeek();
+  notifyAction('Searched for cargo '+(mode==='away'?'away from the port (black market)':'at the starport')+' on '+here().name+'.');
   save(); renderAll();
 }
 function holdUsed(){ return G.hold.reduce((a,h)=>a+h.tons,0); }
@@ -132,6 +143,7 @@ function buyGood(i){
     quality:m.quality||false,hot:m.hot||false});
   m.tons-=qty;
   logEntry('Bought '+qty+'t '+m.name+' @ '+cr(m.ppt)+'/t = '+cr(-cost),'money',-cost);
+  notifyAction('Bought '+qty+'t of '+m.name+' ('+goodCat(m)+') for '+cr(cost)+(m.illegal?' — ILLEGAL goods':'')+'.');
   save(); renderAll();
 }
 function sellHold(i){
@@ -160,6 +172,7 @@ function sellHold(i){
   logEntry('Sold '+h.tons+'t '+h.name+' @ '+cr(ppt)+'/t = '+cr(revenue)+
     ' ('+(profit>=0?'profit ':'LOSS ')+cr(profit)+')'+extra,'money',revenue);
   G.hold.splice(i,1);
+  notifyAction('Sold '+h.tons+'t of '+h.name+' for '+cr(revenue)+' ('+(profit>=0?'profit':'a loss')+' of '+cr(Math.abs(profit))+').'+extra);
   save(); renderAll();
 }
 
@@ -172,9 +185,17 @@ function advanceTime(days){
     const s=SHIPS[G.ship];
     const mort=(s.mortgage||0)*n, sal=crewSalaries()*n, over=monthlyOverhead()*n, bill=mort+sal+over;
     if(bill>0){ G.credits-=bill; book('mortgage',-mort); book('salaries',-sal); book('overhead',-over);
+      // crew bank their pay (abstracted: a tenth reaches the sock under the bunk)
+      (G.crew||[]).forEach(c=>{ c.wallet=(c.wallet||0)+Math.round((c.salary||0)*0.1)*n; });
       const parts=[]; if(mort)parts.push('mortgage'); if(sal)parts.push('salaries'); if(over)parts.push('maintenance & life support');
       logEntry('Monthly bill — '+parts.join(' + ')+' '+cr(-bill)+(G.credits<0?' ⚠ overdrawn — the bank is watching':''),'money',-bill); }
   }
+  if(G._timeBusy)return;                       // dues/healing can advance time themselves
+  G._timeBusy=true;
+  try{
+    processDues();
+    if(G.day-(G.lastHeal==null?0:G.lastHeal)>=7){ G.lastHeal=G.day; healTick(); }
+  }finally{ G._timeBusy=false; }
 }
 
 /* ---------- Jump ---------- */
@@ -192,11 +213,14 @@ function doJump(){
   logEntry('Jumped '+dist+' parsec'+(dist>1?'s':'')+' to '+to.name+' — fuel/operations '+cr(-fuel),'money',-fuel);
   advanceTime(7);
   rollJumpEvent();
+  peopleOnJump();                              // crew act in transit; sabotage bites here
   G.here=G.dest; G.dest=null;
   generateMarket('port');
   logEntry('Arrived at '+to.name+'. '+(G.hold.length?'Local buyers await your cargo.':'Hold is empty — find something to trade.'),'start');
   resolveArrivalJobs();
+  peopleOnArrival();                           // residents, crew sales/quits, tipped-off customs
   rollArrivalEncounter();
+  notifyAction('Jumped to '+to.name+' ('+(to.codes.join(' ')||'plain world')+'). The ship has just arrived.');
   save(); renderAll();
 }
 

@@ -220,15 +220,20 @@ const ARCH={
 const EV_TBL={'World Encounter':'world','Port Event':'port','Jump Event':'jump'};
 
 function clampRel(v){ return Math.max(-100,Math.min(100,Math.round(v))); }
-function meetCast(role){
+function meetCast(role,forceNew){
   if(!G.cast)G.cast=[];
-  if(G.cast.length&&d6()<=2)return G.cast[R(G.cast.length)-1];   // recurring faces
+  if(!forceNew&&G.cast.length&&d6()<=2){ const ch=G.cast[R(G.cast.length)-1];
+    if(typeof augmentCast==='function')augmentCast(ch); return ch; }   // recurring faces
   let nm,guard=0;
   do{ nm=CAST_FIRST[R(CAST_FIRST.length)-1]+' '+CAST_SUR[R(CAST_SUR.length)-1]; guard++; }
   while(guard<60&&(G.cast.some(c=>c.name===nm)||(G.crew||[]).some(c=>c.name===nm)));
   const ch={id:++G.castSeq, name:nm, role:role||'traveller', world:here().name, met:G.day, rels:{}};
+  if(typeof augmentCast==='function')augmentCast(ch);
   G.cast.push(ch);
-  if(G.cast.length>40)G.cast.shift();    // the sector remembers only so many faces
+  if(G.cast.length>80){                  // evict the oldest drifter, never a resident
+    const i=G.cast.findIndex(c=>!c.resident);
+    if(i>=0)G.cast.splice(i,1); else G.cast.shift();
+  }
   return ch;
 }
 function bumpRel(ch,crewName,delta){ if(!ch||!ch.rels||!crewName)return; ch.rels[crewName]=clampRel((ch.rels[crewName]||0)+delta); }
@@ -310,6 +315,7 @@ function resolveChoice(k){
   if(EV_OPEN){ evShow('<div class="evt">'+pc.title+' · resolved</div>'+
     '<div style="margin:12px 0;line-height:1.6">'+out+'</div>'+
     '<div style="text-align:right"><button class="primary" onclick="evNext()">Continue</button></div>'); }
+  notifyAction('Decision made — '+pc.title+': chose "'+k+'". Outcome: '+String(out).replace(/<[^>]*>/g,'').slice(0,200));
   save(); renderAll();
 }
 function dropChoice(){
@@ -388,7 +394,7 @@ const CHOICES={
  adventure(k){ if(k!=='go')return 'You are a trader, not a hero. Probably wise.';
    advanceTime(7); const c=skillCheck(8,'Tactics','Leadership');
    if(c.ok){ const v=5000*d6(); gain(v,'A risky adventure pays off'); return 'A week of danger, well rewarded: +'+cr(v)+'.'+c.txt; }
-   const b=500*d6(); pay(b,'incidentals','Adventure gone wrong — medical bills'); advanceTime(3); return 'It goes wrong — '+cr(b)+' in medical bills and 3 extra days recovering.'+c.txt; },
+   const b=500*d6(); pay(b,'incidentals','Adventure gone wrong — medical bills'); advanceTime(3); return 'It goes wrong — '+cr(b)+' in medical bills and 3 extra days recovering.'+c.txt+hurtCaptain(d6()+1,'the adventure'); },
  job3(k,d){ if(k!=='yes')return 'You decline; time is money.';
    advanceTime(3); gain(d.pay,'Three days’ contract work'); return 'Three days of work for '+cr(d.pay)+'.'; },
  smuggle(k,d){ if(k!=='yes'){ if(d6()<=2)return 'You refuse. The smuggler’s smile doesn’t reach his eyes — you may have made an enemy.';
@@ -453,7 +459,8 @@ const CHOICES={
    const c=skillCheck(8,'Tactics','Gunner');
    if(c.ok)return 'Your crew sends them running!'+c.txt;
    const got=take(); const rep=500*d6(); pay(rep,'incidentals','Hull repairs after pirate skirmish');
-   return 'The fight goes badly — they take '+got+', and repairs cost '+cr(rep)+'.'+c.txt; },
+   const hurt=hurtRandomCrew(d6(),'the pirate skirmish');
+   return 'The fight goes badly — they take '+got+', and repairs cost '+cr(rep)+'.'+c.txt+hurt; },
  gamble(k){ if(k==='join'){ if(G.credits<500)return 'You can’t cover the stake.';
      if(_2d6()+crewSkill('Carouse','Streetwise')>=8){ const v=500*d6(); gain(v,'Won at the card table'); return 'You read him like a manifest: +'+cr(v)+'.'; }
      pay(500,'incidentals','Lost at the card table'); return 'He was better. '+cr(500)+' gone.'; }
@@ -489,7 +496,7 @@ function rollWorldEncounter(force){
     case 24:{ const c=skillCheck(6,'Tactics','Streetwise');
       if(c.ok)mech=' Your crew keeps its distance — no harm done.'+c.txt;
       else { let b=100*d6(); const med=crewSkill('Medic')>0; if(med)b=Math.round(b/2);
-        pay(b,'incidentals','Wildlife encounter — medical bills'); mech=' It bites. Medical bills: '+cr(b)+(med?' (your medic patched the worst).':'.'); }
+        pay(b,'incidentals','Wildlife encounter — medical bills'); mech=' It bites. Medical bills: '+cr(b)+(med?' (your medic patched the worst).':'.')+hurtCaptain(med?R(2):d6(),'wildlife'); }
       break; }
     case 25:{ const i=bestDealIdx(); if(i<0||G.market[i].mult>=1){ mech=' On reflection, no deal here looks tempting enough to worry about.'; break; }
       offerChoice('suspect','World Encounter',r,t+' The deal in question: '+G.market[i].name+' at '+cr(G.market[i].ppt)+'/t.',{idx:i,name:G.market[i].name},
@@ -516,7 +523,7 @@ function rollWorldEncounter(force){
       mech=' '+m.name+' is going for a song — now '+cr(m.ppt)+'/t. Why indeed.'; break; }
     case 43:{ const c=skillCheck(8,'Streetwise','Tactics');
       if(c.ok)mech=' You face them down and they melt away.'+c.txt;
-      else { const b=100*d6(); pay(b,'incidentals','Roughed up by locals — medical'); advanceTime(1); mech=' It gets ugly — '+cr(b)+' in bruises and a day licking wounds.'+c.txt; } break; }
+      else { const b=100*d6(); pay(b,'incidentals','Roughed up by locals — medical'); advanceTime(1); mech=' It gets ugly — '+cr(b)+' in bruises and a day licking wounds.'+c.txt+hurtCaptain(R(3),'a portside beating'); } break; }
     case 44: offerChoice('secret','World Encounter',r,t,{},
       [{k:'use',label:'Profit from it (Streetwise/Persuade 8+)'},{k:'no',label:'Forget you heard it'}]); return;
     case 45: offerChoice('forged','World Encounter',r,t,{},
@@ -538,7 +545,7 @@ function rollWorldEncounter(force){
       mech=' '+cr(c)+' lighter, one friend richer (contact gained).'; break; }
     case 61:{ const p=600+100*d6(); offerChoice('job3','World Encounter',r,t,{pay:p},
       [{k:'yes',label:'Take it (3 days, +'+cr(p)+')'},{k:'no',label:'Decline'}]); return; }
-    case 62:{ const med=crewSkill('Medic')>0;
+    case 62:{ const med=crewSkill('Medic')>0||(G.mods&&G.mods.tended); if(G.mods)G.mods.tended=false;
       if(d6()<=3){ if(med)mech=' A bizarre local bug — your medic shrugs and cures it for free.';
         else { pay(600,'incidentals','Local disease — doctor’s fees'); mech=' A bizarre local bug; the doctor charges '+cr(600)+'.'; } }
       else { const days=med?1:R(3); advanceTime(days); mech=' Bedridden for '+days+' day'+(days>1?'s':'')+(med?' — your medic speeds the recovery.':'.'); }
@@ -558,6 +565,8 @@ function rollWorldEncounter(force){
 function doPortEvent(force){
   dropChoice();
   advanceTime(1);
+  peoplePortWeek();
+  notifyAction('Spent a day walking the port at '+here().name+'.');
   const r=force||d66();
   const t = r>=51 ? 'No encounter of any significance at the port this week.' : PORT_ENC[r];
   let mech='';
@@ -624,6 +633,13 @@ function doPortEvent(force){
 /* --- Jump Events: rolled in transit; crew skills do the heavy lifting --- */
 function rollJumpEvent(force){
   const r=force||d66(), t=JUMP_ENC[r];
+  const MECH=[14,15,23,25,26,31,33,34,42,43];
+  if(!force&&G.mods&&G.mods.maintained&&MECH.indexOf(r)>=0){
+    G.mods.maintained=false;
+    showEvent('Jump Event',r,t+' …but the recent overhaul holds. No harm done — someone earned their salary this week.');
+    logEntry('In jump: '+t+' (shrugged off — maintenance)','muted');
+    return;
+  }
   let mech='';
   switch(r){
     case 11:{ let name='',cash=2000*d6();
@@ -636,7 +652,7 @@ function rollJumpEvent(force){
     case 13:{ const c=skillCheck(8,'Admin','Streetwise','Leadership');
       if(c.ok){ G.mods.nextContactDM+=1; mech=' Handled with quiet competence — word gets around (+1 next contact search).'+c.txt; }
       else mech=' It sorts itself out, eventually.'+c.txt; break; }
-    case 14:{ let b=200*d6(); if(crewSkill('Engineer')>=2)b=Math.round(b/2); pay(b,'incidentals','Shipboard accident — spare parts'); mech=' Repairs cost '+cr(b)+'.'; break; }
+    case 14:{ let b=200*d6(); if(crewSkill('Engineer')>=2)b=Math.round(b/2); pay(b,'incidentals','Shipboard accident — spare parts'); mech=' Repairs cost '+cr(b)+'.'+(d6()<=2?hurtRandomCrew(R(3),'a shipboard accident'):''); break; }
     case 15:{ if(G.hold.length){ let frac=0.05*d6(); if(crewSkill('Engineer'))frac/=2; mech=damageCargo(frac,'Electrical fire in the cargo bay')||' The fire is out before it spreads.'; }
       else { const b=100*d6(); pay(b,'incidentals','Electrical fire — rewiring'); mech=' Rewiring costs '+cr(b)+'.'; } break; }
     case 16:{ const c=skillCheck(8,'Steward','Carouse');

@@ -13,7 +13,7 @@ bundler, package.json, or module system.
 
 **Script load order is the architecture.** `index.html` loads, in this exact order:
 `js/data.js → js/world.js → js/ship.js → js/game.js → js/events.js → js/npc.js →
-js/ui.js → js/main.js`. The files are sequential slices of what was once one script;
+js/people.js → js/ai.js → js/ui.js → js/main.js`. The files are sequential slices of what was once one script;
 top-level `const`/`let` in any file is visible to all later files (and to inline
 `onclick` handlers). If you add a file, add its `<script>` tag in dependency order
 and update the test concatenation command below.
@@ -45,8 +45,28 @@ the book is Zozer Games' copyrighted work and must never be committed.
 File map: `js/data.js` (goods, GOODNAMES, price), `js/world.js` (world gen, hexes),
 `js/ship.js` (ships, crew, running costs), `js/game.js` (books, state, market,
 trade, time, jump), `js/events.js` (event tables + mechanics + choices + pop-ups),
-`js/npc.js` (contacts, `here`/`logEntry`/`flash`), `js/ui.js` (rendering, star map,
-modals), `js/main.js` (boot), `css/style.css`, `index.html`.
+`js/npc.js` (contacts, `here`/`logEntry`/`flash`), `js/people.js` (people
+simulation: traits, 3-horizon goals, morale = avg of −100..100 `crels`, hidden
+wallets + pub/priv inventories, health, crew/NPC autonomous actions, loans/
+requests/barter, hiring), `js/ai.js` (BYOK Claude Haiku: chat, action brain,
+reaction pop-ups, settings), `js/ui.js` (rendering, star map, modals,
+commitments), `js/main.js` (boot), `css/style.css`, `index.html`.
+
+People-sim rules that matter:
+- **AI proposes, engine disposes.** `js/ai.js` may only pick action ids from
+  `eligibleCrewActs`/`eligibleNpcActs` and propose offers validated against real
+  wallets — every credit amount is rolled and booked engine-side. Tests run with
+  no key, so the rule-based path must stay complete on its own.
+- Crew theft books `shrinkage` silently at theft time (the Financials line IS the
+  discovery mechanic); `inspectQuarters` reverses it when goods return to the hold.
+- Loans: receipt books `loanIn +P`; repayment `loanIn −P` + `interest −I`; on
+  seizure the `loanIn` stays (cash was kept, cargo paid via `spoilage`). Lending
+  mirrors with `lentOut`. Crew wallets/inventories NEVER touch the books.
+- `notifyAction(desc)` is called after every state-changing player action — it
+  feeds the AI reaction pop-up and is a no-op without a key. Keep calling it from
+  new actions.
+- Health: `hpMax = STR+DEX+END` from the UPP (`augmentHealth`); 0 → down 14 days;
+  Medic speeds `healTick`. The player is `G.captain`.
 
 - **`COMMON` / `TRADE` / `ALLGOODS`** — the Cepheus trade-goods table. `COMMON` (6
   goods, ids 101–106) is always available; `TRADE` is the D66 map (keys 11–65; 66 =
@@ -152,7 +172,7 @@ There is no test file; tests are run ad-hoc in Node against the concatenated
 sources (same order as the `<script>` tags in `index.html`):
 
 ```bash
-cat js/data.js js/world.js js/ship.js js/game.js js/events.js js/npc.js js/ui.js js/main.js > /tmp/st.js
+cat js/data.js js/world.js js/ship.js js/game.js js/events.js js/npc.js js/people.js js/ai.js js/ui.js js/main.js > /tmp/st.js
 node --check /tmp/st.js              # syntax
 ```
 

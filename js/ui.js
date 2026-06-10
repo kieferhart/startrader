@@ -1,5 +1,23 @@
 /* ---------- Rendering ---------- */
-function renderAll(){ renderTabs(); renderTop(); renderMap(); renderWorlds(); renderCurrentWorld(); renderMarket(); renderHold(); renderLog(); renderJumpBtn(); renderPendingChoice(); }
+function renderAll(){ renderTabs(); renderTop(); renderMap(); renderWorlds(); renderCurrentWorld(); renderMarket(); renderHold(); renderLog(); renderJumpBtn(); renderCommitments(); renderPendingChoice(); }
+
+/* ---------- Commitments (loans, receivables, delivery commissions) ---------- */
+function renderCommitments(){
+  const el=document.getElementById('commitments'); if(!el)return;
+  const rows=[];
+  (G.loans||[]).forEach((l,i)=>{ const owed=Math.round(l.P*(1+l.rate/100));
+    rows.push('<div class="w"><div><div class="nm neg">Owe '+l.from+' '+cr(owed)+'</div>'+
+      '<div class="meta">due day '+(l.due+1)+(l.missed?' · PAYMENT MISSED':'')+(l.crew?' · crew loan':'')+'</div></div>'+
+      '<button '+(G.credits<owed?'disabled':'')+' onclick="repayLoan('+i+')">Repay</button></div>'); });
+  (G.lent||[]).filter(l=>!l.resolved).forEach(l=>{ const back=Math.round(l.P*(1+l.rate/100));
+    rows.push('<div class="w"><div><div class="nm pos">'+l.to+' owes you '+cr(back)+'</div>'+
+      '<div class="meta">promised by day '+(l.due+1)+'</div></div></div>'); });
+  (G.requests||[]).forEach((r,i)=>{ const canDeliver=here().name===r.world&&G.hold.some(h=>h.id===r.gid);
+    rows.push('<div class="w"><div><div class="nm">'+r.tons+'t '+goodById(r.gid).name+' → '+r.name+'</div>'+
+      '<div class="meta">'+r.world+' · '+cr(r.ppt)+'/t · by day '+(r.due+1)+'</div></div>'+
+      '<button '+(canDeliver?'':'disabled ')+'onclick="deliverRequest('+i+')">Deliver</button></div>'); });
+  el.innerHTML=rows.length?rows.join(''):'<div class="hint">No standing obligations. The freest a trader ever feels.</div>';
+}
 
 /* ---------- Tabs (Trade / Star Map / Bridge) ---------- */
 function switchTab(t){ G.tab=t; save(); renderTabs(); }
@@ -88,10 +106,14 @@ function renderCurrentWorld(){
   document.getElementById('cw-name').textContent=w.name;
   document.getElementById('t-loc').textContent=w.name;
   const codes=w.codes.map(c=>'<span class="code'+(BADCODE.includes(c)?' bad':'')+'" title="'+CODE_NAME[c]+'">'+c+'</span>').join('');
+  const ppl=(typeof peopleHere==='function'?peopleHere():[]).map(ch=>
+    '<span class="code" style="cursor:pointer" title="'+ch.role+' · standing '+(shipRel(ch)>0?'+':'')+shipRel(ch)+'" '+
+    'onclick="showChat(\'cast\',\''+ch.name+'\')">'+ch.name+'</span>').join(' ');
   document.getElementById('cw-detail').innerHTML=
     '<div class="uwp">'+uwpString(w.u)+'</div>'+
     '<div class="hint">Starport '+w.u.sp+' · Pop 10^'+w.u.pop+' · Law '+w.u.law+' · TL '+w.u.tl+'</div>'+
-    '<div class="codes">'+(codes||'<span class="muted">no special trade codes</span>')+'</div>';
+    '<div class="codes">'+(codes||'<span class="muted">no special trade codes</span>')+'</div>'+
+    (ppl?'<div class="hint" style="margin-top:8px">People here (tap to talk):</div><div class="codes">'+ppl+'</div>':'');
 }
 function renderMarket(){
   document.getElementById('mkt-src').textContent=G.marketSrc;
@@ -191,7 +213,10 @@ function showPeople(){
   const cell=v=>'<td class="num '+(v>0?'pos':v<0?'neg':'muted')+'">'+(v==null?'—':(v>0?'+':'')+v)+'</td>';
   const rows=cast.map(ch=>{
     const sv=shipRel(ch);
-    return '<tr><td><b>'+ch.name+'</b><div class="hint">'+ch.role+' · met on '+ch.world+', day '+(ch.met+1)+'</div></td>'+
+    const talk=ch.world===here().name?' <button style="padding:2px 8px;font-size:11px" onclick="showChat(\'cast\',\''+ch.name+'\')">Talk</button>':'';
+    return '<tr><td><b>'+ch.name+'</b>'+talk+'<div class="hint">'+ch.role+' · '+(ch.resident?'lives on ':'met on ')+ch.world+
+      (ch.traits?' · '+ch.traits.join(', '):'')+(ch.hp!=null&&ch.hp<ch.hpMax?' · '+hpWord(ch):'')+'</div>'+
+      (ch.goals?'<div class="hint muted">talks about wanting to '+ch.goals.short.txt+'</div>':'')+'</td>'+
       crewNames.map(n=>cell(ch.rels[n])).join('')+
       '<td class="num '+(sv>0?'pos':sv<0?'neg':'muted')+'"><b>'+(sv>0?'+':'')+sv+'</b></td></tr>';
   }).join('');
@@ -202,32 +227,54 @@ function showPeople(){
 }
 function showCrew(){
   const s=SHIPS[G.ship];
+  const cap=G.captain;
+  const capCard=cap?('<div class="card" style="margin-bottom:8px;border-color:#2f6ea8"><div class="body">'+
+    '<div class="row" style="justify-content:space-between"><b style="color:#dfe8f7">You — Captain</b>'+
+    '<span class="pill">'+cap.hp+'/'+cap.hpMax+' '+hpWord(cap)+'</span></div>'+
+    '<div class="hint">UPP <b style="letter-spacing:2px">'+cap.upp+'</b> · health is STR+DEX+END — injuries come off the pool; a Medic speeds recovery.</div>'+
+    '</div></div>'):'';
   const cards=G.crew.map(c=>{
-    const uppDecode=c.upp.split('').map((d,i)=>UPP_LBL[i]+' '+d).join(' · ');
+    const m=morale(c);
     const rel = c.rel.desc==='Loner' ? '<span class="muted">Loner — keeps to themselves</span>'
               : c.rel.desc+' <b>'+(c.rel.target||'a crewmate')+'</b>';
+    const inv=(c.pubInv||[]).map(i=>i.tons+'t '+i.name).join(', ');
     return '<div class="card" style="margin-bottom:8px"><div class="body">'+
       '<div class="row" style="justify-content:space-between"><b style="color:#dfe8f7">'+c.name+'</b>'+
       '<span class="pill">'+c.position+'</span></div>'+
-      '<div class="hint" style="margin:4px 0">UPP <b style="letter-spacing:2px">'+c.upp+'</b> <span class="muted">('+uppDecode+')</span> · Age '+c.age+
-      ' · '+(c.salary?cr(c.salary)+'/mo':'profit-share')+'</div>'+
-      '<div style="margin:3px 0">'+c.skills.map(sk=>'<span class="code">'+sk+'</span>').join(' ')+'</div>'+
+      '<div class="hint" style="margin:4px 0">UPP <b style="letter-spacing:2px">'+c.upp+'</b> · Age '+c.age+
+      ' · '+(c.salary?cr(c.salary)+'/mo':'profit-share')+
+      ' · <span class="'+(m>15?'pos':m<-15?'neg':'')+'">'+moraleWord(m)+'</span>'+
+      ' · '+(c.down?'<span class="neg">in sickbay</span>':c.hp+'/'+c.hpMax+' '+hpWord(c))+
+      (c.quitting?' · <span class="neg">GIVEN NOTICE</span>':'')+'</div>'+
+      '<div style="margin:3px 0">'+c.skills.map(sk=>'<span class="code">'+sk+'</span>').join(' ')+
+      ' '+(c.traits||[]).map(t=>'<span class="code" style="background:#2a2440;color:#c5a8ff">'+t+'</span>').join(' ')+'</div>'+
+      (c.goals?'<div class="hint muted">talks about wanting to '+c.goals.short.txt+'</div>':'')+
+      (inv?'<div class="hint">owns (declared): '+inv+'</div>':'')+
       '<div class="hint" style="margin-top:4px;color:#c5a8ff">⮡ '+rel+'</div>'+
-      '</div></div>';
+      '<div class="row" style="margin-top:6px">'+
+      '<button onclick="showChat(\'crew\',\''+c.name+'\')">Talk</button>'+
+      '<button onclick="inspectQuarters(\''+c.name+'\')">Inspect quarters</button>'+
+      '<button class="danger" onclick="fireCrew(\''+c.name+'\')">Dismiss</button>'+
+      '</div></div></div>';
   }).join('');
+  const sm=shipMorale();
   openModal('<h2>CREW ROSTER</h2>'+
-    '<p class="hint">Aboard the <b>'+s.name+'</b>. Characteristics are STR·DEX·END·INT·EDU·SOC. '+
-    'Relationships are rolled on Star Trader’s NPC table — they colour how the crew behave when events hit.</p>'+
-    cards+
+    '<p class="hint">Aboard the <b>'+s.name+'</b>. Ship morale: <b class="'+(sm>15?'pos':sm<-15?'neg':'')+'">'+moraleWord(sm)+'</b>. '+
+    'Morale is each member’s average relationship (−100..100) with the rest of the crew and with you — it drives what they do on their own time. Wallets and what they keep <i>under</i> the bunk are theirs to know.</p>'+
+    capCard+cards+
     '<table><tbody><tr><td><b>Crew salary total</b></td><td class="num"><b>'+(crewSalaries()?cr(crewSalaries())+' / month':'profit-share (no salary)')+'</b></td></tr></tbody></table>'+
-    '<div style="margin-top:14px;text-align:right;"><button class="primary" onclick="closeModal()">Close</button></div>');
+    '<div style="margin-top:14px;text-align:right;">'+
+    ('ABC'.includes(here().u.sp)?'<button onclick="showRecruits()">Hiring hall</button> ':'')+
+    '<button class="primary" onclick="closeModal()">Close</button></div>');
 }
 function showFinancials(){
   const b=G.books||emptyBooks();
   const inv=inventoryValue(), cash=G.credits, nw=netWorth();
   const income=b.sales+b.otherIncome;
-  const expenses=-(b.cogs+b.fuel+b.mortgage+b.salaries+(b.overhead||0)+b.fines+b.incidentals+b.spoilage); // these stored negative
+  const expenses=-(b.cogs+b.fuel+b.mortgage+b.salaries+(b.overhead||0)+b.fines+b.incidentals+b.spoilage+(b.interest||0)+(b.shrinkage||0)); // these stored negative
   const net=income-expenses;
+  const owed=(G.loans||[]).reduce((a,l)=>a+Math.round(l.P*(1+l.rate/100)),0);
+  const receivable=(G.lent||[]).filter(l=>!l.resolved).reduce((a,l)=>a+Math.round(l.P*(1+l.rate/100)),0);
   const row=(label,val,opt)=>'<tr><td>'+label+'</td><td class="num '+(val>=0?(opt&&opt.pos?'pos':''):'neg')+'">'+(val<0?'−':'')+'Cr'+Math.abs(Math.round(val)).toLocaleString('en-US')+'</td></tr>';
   const exp=(label,val)=>'<tr><td style="padding-left:14px" class="muted">'+label+'</td><td class="num">'+(val?'−Cr'+Math.abs(Math.round(val)).toLocaleString('en-US'):'—')+'</td></tr>';
   const inc=(label,val)=>'<tr><td style="padding-left:14px" class="muted">'+label+'</td><td class="num">'+(val?'+Cr'+Math.abs(Math.round(val)).toLocaleString('en-US'):'—')+'</td></tr>';
@@ -247,6 +294,8 @@ function showFinancials(){
      exp('Maintenance &amp; life support', b.overhead)+
      exp('Customs fines', b.fines)+
      exp('Cargo theft / spoilage', b.spoilage)+
+     exp('Inventory shrinkage', b.shrinkage)+
+     exp('Interest paid', b.interest)+
      exp('Incidentals', b.incidentals)+
      row('Total expenses', -expenses)+
      '<tr style="border-top:2px solid var(--grid)"><td><b>NET PROFIT / LOSS</b></td><td class="num '+(net>=0?'pos':'neg')+'"><b>'+(net<0?'−':'')+'Cr'+Math.abs(Math.round(net)).toLocaleString('en-US')+'</b></td></tr>'+
@@ -256,7 +305,9 @@ function showFinancials(){
      '<tr><td><b>Assets</b></td><td></td></tr>'+
      row('Cash on hand', cash)+
      '<tr><td style="padding-left:14px" class="muted">Cargo inventory (at cost)</td><td class="num">Cr'+Math.round(inv).toLocaleString('en-US')+'</td></tr>'+
-     '<tr style="border-top:1px solid var(--grid)"><td><b>Net worth (working capital)</b></td><td class="num '+(nw>=0?'pos':'neg')+'"><b>Cr'+Math.round(nw).toLocaleString('en-US')+'</b></td></tr>'+
+     (receivable?'<tr><td style="padding-left:14px" class="muted">Receivables (loans out, at promise)</td><td class="num">Cr'+receivable.toLocaleString('en-US')+'</td></tr>':'')+
+     (owed?'<tr><td style="padding-left:14px" class="muted neg">Liabilities (loans payable)</td><td class="num neg">−Cr'+owed.toLocaleString('en-US')+'</td></tr>':'')+
+     '<tr style="border-top:1px solid var(--grid)"><td><b>Net worth (working capital)</b></td><td class="num '+(nw>=0?'pos':'neg')+'"><b>Cr'+Math.round(nw).toLocaleString('en-US')+'</b>'+(owed?' <span class="hint">(−'+'Cr'+owed.toLocaleString('en-US')+' debt)</span>':'')+'</td></tr>'+
      '<tr><td>Starting capital</td><td class="num muted">Cr'+G.startCredits.toLocaleString('en-US')+'</td></tr>'+
      row('Return on capital', nw-G.startCredits)+
      '<tr><td class="muted">ROI</td><td class="num '+(roi>=0?'pos':'neg')+'">'+roi+'%</td></tr>'+
@@ -278,6 +329,8 @@ function showHelp(){
    '<p class="hint"><b>Trade codes</b> (Ag, In, Hi, Ht, Ri…) on each world decide what’s produced cheaply and what sells dear. Example: buy <i>Textiles</i> on an <b>Ag</b> world, sell on a <b>Hi</b> or <b>Na</b> world.</p>'+
    '<p class="hint">Every few weeks your ship bills monthly upkeep. Illegal goods (black market) pay big but risk customs fines on worlds with high Law Level.</p>'+
    '<p class="hint"><b>Events have teeth.</b> World, Port and Jump events pop up as they happen and cost or earn real credits, time and cargo. Some present a <b>decision</b> — pick an option to continue (a decision can’t be dismissed). A history of recent events stays in the Bridge panel. Your <b>crew’s skills</b> (see Crew) are rolled to resolve many of them: a Medic prevents quarantines and doctor’s bills, an Engineer halves repair costs, the captain’s Leadership keeps morale (and your sale prices) up.</p>'+
+   '<p class="hint"><b>Your crew are people.</b> Each has traits, three goals, hidden savings, a health pool (STR+DEX+END), and relationship scores (−100..100) with you and each other — the average is their <b>morale</b>, and it drives what they do on their own time: maintain the drive, work side jobs, run little trades from their quarters… or skim your cargo, smuggle passengers, sabotage a feuding crewmate’s handiwork, demand raises, and quit. Locals on every world (tap their names on the Current World card) request goods at a premium, offer and ask for <b>loans</b>, propose barters, and remember how you treat them — see <b>Commitments</b> on the Bridge tab for everything you owe and are owed.</p>'+
+   '<p class="hint"><b>Optional AI (⚙ AI):</b> paste your own Anthropic API key to <b>talk with anyone</b> in freeform chat, have crew and locals react to your moves, and let Claude pick their actions in character. Without a key the built-in behavior engine runs everything the same — chat is the only thing that needs the key.</p>'+
    '<div style="margin-top:14px;text-align:right;"><button class="primary" onclick="closeModal()">Got it</button></div>');
 }
 function confirmNewGame(){

@@ -23,8 +23,17 @@ game auto-saves in the browser (localStorage).
 - **Star Trader d66 event tables with teeth**: World, Port and Jump events pop
   up with real consequences — credits, time, cargo — and decision points
   (smuggle the package? outbid the rival? fight the pirates?)
-- Crew that matter: skills resolve events (Medic prevents quarantines, Engineer
-  halves repairs, Leadership holds morale), plus UPPs and NPC relationships
+- Crew that matter: skills resolve events, plus **a full crew simulation** —
+  traits, short/medium/long-term goals, hidden wallets, public & private
+  inventories, health (STR+DEX+END), and −100..100 relationships whose average
+  is their morale. They maintain the ship, run side hustles, demand raises,
+  smuggle passengers, steal cargo, sabotage, and quit
+- Living worlds: resident NPCs with goals and wealth who commission deliveries
+  at a premium, offer and request **loans**, propose favorable barters, tip you
+  off — or sell you out to customs
+- **Optional BYOK AI** (your own Anthropic API key, stored only in your
+  browser): freeform chat with anyone, characters react to your actions, and
+  Claude Haiku picks crew/NPC actions in character. Fully playable without it
 - Ship operating costs: 40-year mortgage, crew salaries, maintenance, life
   support — billed every 4 weeks
 - Financials: full profit & loss and balance sheet, reconciled to the credit
@@ -41,6 +50,8 @@ js/ship.js        ships, crew generation, running costs
 js/game.js        game state, books, market, buy/sell, time, jump
 js/events.js      d66 event mechanics, pop-up queue, player choices
 js/npc.js         contacts and small shared helpers
+js/people.js      people simulation: traits, goals, morale, wallets, actions, loans
+js/ai.js          optional BYOK Claude Haiku layer: chat, brains, reactions
 js/ui.js          rendering, star map, modals
 js/main.js        boot
 ```
@@ -50,7 +61,7 @@ js/main.js        boot
 There is no framework; tests run in Node against the concatenated sources:
 
 ```bash
-cat js/data.js js/world.js js/ship.js js/game.js js/events.js js/npc.js js/ui.js js/main.js > /tmp/st.js
+cat js/data.js js/world.js js/ship.js js/game.js js/events.js js/npc.js js/people.js js/ai.js js/ui.js js/main.js > /tmp/st.js
 node --check /tmp/st.js
 ```
 

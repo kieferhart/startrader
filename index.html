@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Star Trader — Solo Trading Game</title>
-<link rel="stylesheet" href="css/style.css?v=6">
+<link rel="stylesheet" href="css/style.css?v=7">
 </head>
 <body>
 
@@ -22,6 +22,7 @@
   <button onclick="showPeople()">People</button>
   <button onclick="showFinancials()">Financials</button>
   <button onclick="showHelp()">How to Play</button>
+  <button onclick="showSettings()" title="AI settings (bring your own key)">⚙ AI</button>
   <button class="danger" onclick="confirmNewGame()">New Game</button>
 </div>
 
@@ -95,6 +96,10 @@
       </div>
     </div>
     <div class="card">
+      <h3>Commitments</h3>
+      <div class="body worlds" id="commitments"></div>
+    </div>
+    <div class="card">
       <h3>Ledger / Diary</h3>
       <div class="body log" id="log" style="max-height:60vh;overflow-y:auto;padding:0;"></div>
     </div>
@@ -112,13 +117,15 @@
   <div class="modal evpop"><div class="body" id="ev-body"></div></div>
 </div>
 
-<script src="js/data.js?v=6"></script>
-<script src="js/world.js?v=6"></script>
-<script src="js/ship.js?v=6"></script>
-<script src="js/game.js?v=6"></script>
-<script src="js/events.js?v=6"></script>
-<script src="js/npc.js?v=6"></script>
-<script src="js/ui.js?v=6"></script>
-<script src="js/main.js?v=6"></script>
+<script src="js/data.js?v=7"></script>
+<script src="js/world.js?v=7"></script>
+<script src="js/ship.js?v=7"></script>
+<script src="js/game.js?v=7"></script>
+<script src="js/events.js?v=7"></script>
+<script src="js/npc.js?v=7"></script>
+<script src="js/people.js?v=7"></script>
+<script src="js/ai.js?v=7"></script>
+<script src="js/ui.js?v=7"></script>
+<script src="js/main.js?v=7"></script>
 </body>
 </html>

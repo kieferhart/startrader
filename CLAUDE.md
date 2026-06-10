@@ -48,8 +48,10 @@ trade, time, jump), `js/events.js` (event tables + mechanics + choices + pop-ups
 `js/npc.js` (contacts, `here`/`logEntry`/`flash`), `js/people.js` (people
 simulation: traits, 3-horizon goals, morale = avg of −100..100 `crels`, hidden
 wallets + pub/priv inventories, health, crew/NPC autonomous actions, loans/
-requests/barter, hiring), `js/ai.js` (BYOK Claude Haiku: chat, action brain,
-reaction pop-ups, settings), `js/ui.js` (rendering, star map, modals,
+requests/barter, hiring), `js/ai.js` (BYOK chat/action-brain/reaction layer —
+provider-aware: Anthropic direct (native structured outputs) or OpenRouter
+(OpenAI chat-completions format, schema enforced by prompt + `parseLooseJSON`);
+key/provider/model in localStorage only), `js/ui.js` (rendering, star map, modals,
 commitments), `js/main.js` (boot), `css/style.css`, `index.html`.
 
 People-sim rules that matter:

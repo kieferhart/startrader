@@ -8,16 +8,46 @@
    and propose engine-validated offers; it never invents numbers.
    ============================================================ */
 
-const AI_KEY='starTraderAIKey', AI_USAGE='starTraderAIUsage', AI_MODEL='claude-haiku-4-5';
+const AI_KEY='starTraderAIKey', AI_USAGE='starTraderAIUsage',
+      AI_PROV='starTraderAIProvider', AI_MODEL_KEY='starTraderAIModel';
+const AI_DEFAULTS={anthropic:'claude-haiku-4-5', openrouter:'anthropic/claude-haiku-4.5'};
 function aiKey(){ try{return localStorage.getItem(AI_KEY)||'';}catch(e){return '';} }
+function aiProvider(){ try{return localStorage.getItem(AI_PROV)||'anthropic';}catch(e){return 'anthropic';} }
+function aiModel(){ try{return localStorage.getItem(AI_MODEL_KEY)||AI_DEFAULTS[aiProvider()];}catch(e){return AI_DEFAULTS.anthropic;} }
 function aiEnabled(){ return !!aiKey(); }
 function aiUsage(){ try{return JSON.parse(localStorage.getItem(AI_USAGE))||{i:0,o:0};}catch(e){return {i:0,o:0};} }
-function trackUsage(u){ if(!u)return; const t=aiUsage(); t.i+=u.input_tokens||0; t.o+=u.output_tokens||0;
+function trackUsage(inTok,outTok){ const t=aiUsage(); t.i+=inTok||0; t.o+=outTok||0;
   try{localStorage.setItem(AI_USAGE,JSON.stringify(t));}catch(e){} }
-function aiCost(){ const u=aiUsage(); return (u.i*1+u.o*5)/1e6; }   // Haiku 4.5: $1/M in, $5/M out
+function aiCost(){ const u=aiUsage(); return (u.i*1+u.o*5)/1e6; }   // Haiku-rate estimate ($1/$5 per M)
 
+// models reached through OpenRouter can't use Anthropic-native structured
+// outputs, so on that path the schema is enforced by prompt + loose parsing
+function parseLooseJSON(t){
+  t=String(t).trim();
+  if(t.indexOf('```')===0)t=t.replace(/^```[a-z]*\s*/i,'').replace(/```\s*$/,'').trim();
+  const i=t.indexOf('{'), j=t.lastIndexOf('}');
+  if(i>=0&&j>i)t=t.slice(i,j+1);
+  return JSON.parse(t);
+}
 async function aiCall(system,messages,schema,maxTok){
-  const body={model:AI_MODEL,max_tokens:maxTok||600,system,messages};
+  if(aiProvider()==='openrouter'){
+    let sys=system;
+    if(schema)sys+='\n\nRespond ONLY with a single valid JSON object matching this JSON Schema — no prose, no code fences:\n'+JSON.stringify(schema);
+    const body={model:aiModel(),max_tokens:maxTok||600,
+      messages:[{role:'system',content:sys}].concat(messages)};
+    const r=await fetch('https://openrouter.ai/api/v1/chat/completions',{
+      method:'POST',
+      headers:{'content-type':'application/json','authorization':'Bearer '+aiKey(),
+        'HTTP-Referer':'https://kieferhart.github.io/startrader/','X-Title':'Star Trader'},
+      body:JSON.stringify(body)});
+    if(!r.ok)throw new Error('OpenRouter '+r.status);
+    const d=await r.json();
+    if(d.usage)trackUsage(d.usage.prompt_tokens,d.usage.completion_tokens);
+    const t=d.choices&&d.choices[0]&&d.choices[0].message&&d.choices[0].message.content;
+    if(!t)throw new Error('empty');
+    return schema?parseLooseJSON(t):t;
+  }
+  const body={model:aiModel(),max_tokens:maxTok||600,system,messages};
   if(schema)body.output_config={format:{type:'json_schema',schema}};
   const r=await fetch('https://api.anthropic.com/v1/messages',{
     method:'POST',
@@ -25,7 +55,8 @@ async function aiCall(system,messages,schema,maxTok){
       'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
     body:JSON.stringify(body)});
   if(!r.ok)throw new Error('API '+r.status);
-  const d=await r.json(); trackUsage(d.usage);
+  const d=await r.json();
+  if(d.usage)trackUsage(d.usage.input_tokens,d.usage.output_tokens);
   const t=(d.content||[]).find(b=>b.type==='text');
   if(!t)throw new Error('empty');
   return schema?JSON.parse(t.text):t.text;
@@ -161,23 +192,39 @@ function chatAcceptOffer(type,amt){
 
 /* ---------- Settings ---------- */
 function showSettings(){
-  const u=aiUsage();
+  const u=aiUsage(); const prov=aiProvider();
+  const inp='style="background:var(--cell);border:1px solid var(--grid);color:var(--ink);border-radius:4px;padding:8px;font-family:inherit"';
   openModal('<h2>SETTINGS — AI</h2>'+
-   '<p class="hint">Bring your own Anthropic API key to give the crew and locals a voice (chat) and let Claude Haiku pick their actions in character. '+
-   'The key is stored <b>only in this browser</b> (localStorage), is never put in the save file, and is sent only to api.anthropic.com. '+
-   'Without a key the game runs exactly the same on its built-in behavior engine — chat is the only thing disabled.</p>'+
-   '<div class="row" style="margin:10px 0"><input id="aikey" type="password" placeholder="sk-ant-..." value="'+(aiKey()?'••••••••••••':'')+'" '+
-   'style="flex:1;background:var(--cell);border:1px solid var(--grid);color:var(--ink);border-radius:4px;padding:8px;font-family:inherit">'+
-   '<button class="primary" onclick="saveAIKey()">Save</button><button onclick="clearAIKey()">Clear</button></div>'+
-   '<p class="hint">Model: <b>'+AI_MODEL+'</b> ($1/M input, $5/M output — a chat message or crew tick costs fractions of a cent).<br>'+
-   'Usage this browser: '+u.i.toLocaleString()+' in / '+u.o.toLocaleString()+' out ≈ $'+aiCost().toFixed(3)+'</p>'+
-   '<p class="hint">Get a key at console.anthropic.com → API keys.</p>'+
+   '<p class="hint">Bring your own key to give the crew and locals a voice (chat), let the model pick their actions in character, and get reaction pop-ups. '+
+   'The key is stored <b>only in this browser</b> (localStorage), never in the save file, and is sent only to the provider you pick. '+
+   'Without a key the game runs the same on its built-in behavior engine — chat is the only thing disabled.</p>'+
+   '<div class="row" style="margin:10px 0"><span class="hint" style="width:70px">Provider</span>'+
+   '<select id="aiprov" '+inp+' onchange="var m=document.getElementById(\'aimodel\'); if(m)m.placeholder=this.value===\'openrouter\'?\''+AI_DEFAULTS.openrouter+'\':\''+AI_DEFAULTS.anthropic+'\'">'+
+   '<option value="anthropic"'+(prov==='anthropic'?' selected':'')+'>Anthropic (api.anthropic.com)</option>'+
+   '<option value="openrouter"'+(prov==='openrouter'?' selected':'')+'>OpenRouter (openrouter.ai)</option>'+
+   '</select></div>'+
+   '<div class="row" style="margin:10px 0"><span class="hint" style="width:70px">API key</span>'+
+   '<input id="aikey" type="password" placeholder="'+(prov==='openrouter'?'sk-or-...':'sk-ant-...')+'" value="'+(aiKey()?'••••••••••••':'')+'" '+inp+' class="grow" style="flex:1;background:var(--cell);border:1px solid var(--grid);color:var(--ink);border-radius:4px;padding:8px;font-family:inherit"></div>'+
+   '<div class="row" style="margin:10px 0"><span class="hint" style="width:70px">Model</span>'+
+   '<input id="aimodel" type="text" placeholder="'+AI_DEFAULTS[prov]+'" value="'+(aiModel()===AI_DEFAULTS[prov]?'':aiModel())+'" '+inp+' style="flex:1;background:var(--cell);border:1px solid var(--grid);color:var(--ink);border-radius:4px;padding:8px;font-family:inherit">'+
+   '</div>'+
+   '<div class="row" style="justify-content:flex-end;gap:6px"><button class="primary" onclick="saveAIKey()">Save</button><button onclick="clearAIKey()">Clear key</button></div>'+
+   '<p class="hint" style="margin-top:10px">Leave Model blank for the default (Claude Haiku — cheap and fast: a chat message or crew turn costs fractions of a cent). '+
+   'On OpenRouter you can point it at any model id, e.g. <b>'+AI_DEFAULTS.openrouter+'</b>; spend shows on your OpenRouter dashboard.<br>'+
+   'Usage this browser: '+u.i.toLocaleString()+' in / '+u.o.toLocaleString()+' out'+(prov==='anthropic'?' ≈ $'+aiCost().toFixed(3):' (≈ $'+aiCost().toFixed(3)+' at Haiku rates; actual depends on model)')+'</p>'+
+   '<p class="hint">Keys: console.anthropic.com → API keys, or openrouter.ai → Keys.</p>'+
    '<div style="margin-top:12px;text-align:right;"><button class="primary" onclick="closeModal()">Close</button></div>');
 }
 function saveAIKey(){
   const v=(document.getElementById('aikey')||{}).value||'';
-  if(v&&v.indexOf('•')<0){ try{localStorage.setItem(AI_KEY,v.trim());}catch(e){} }
-  closeModal(); flash(aiEnabled()?'AI enabled — the crew can talk now.':'No key saved.');
+  const p=(document.getElementById('aiprov')||{}).value||'anthropic';
+  const m=((document.getElementById('aimodel')||{}).value||'').trim();
+  try{
+    localStorage.setItem(AI_PROV,p);
+    if(m)localStorage.setItem(AI_MODEL_KEY,m); else localStorage.removeItem(AI_MODEL_KEY);
+    if(v&&v.indexOf('•')<0)localStorage.setItem(AI_KEY,v.trim());
+  }catch(e){}
+  closeModal(); flash(aiEnabled()?'AI enabled via '+aiProvider()+' ('+aiModel()+') — the crew can talk now.':'No key saved.');
 }
 function clearAIKey(){ try{localStorage.removeItem(AI_KEY);}catch(e){} closeModal(); flash('AI key removed. Rule-based behavior continues.'); }
 

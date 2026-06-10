@@ -404,3 +404,25 @@ async function aiReact(desc){
   showChatPop(c.kind,c.name,out.say);
   updateChatBadge();
 }
+
+
+/* ---------- Crew strike up conversation during jump ---------- */
+async function aiJumpChatter(){
+  if(!aiEnabled()||!G.crew||!G.crew.length)return;
+  const n=Math.min(G.crew.length,1+(Math.random()<0.5?1:0));
+  const pool=[...G.crew]; shuffle(pool);
+  for(let i=0;i<n;i++){
+    const c=pool[i];
+    try{
+      const sys=crewSheet(c)+CHAT_RULES+
+        ' SITUATION: the ship just entered jumpspace — a week locked in with the same faces. YOU are opening a conversation with the captain. '+
+        'Say something on your mind: your goals, a worry about the ship or the books, a crewmate, the cargo, the destination, or just the long grey week. 1-2 sentences. Do not greet generically — have a reason to talk.';
+      const say=await aiCall(sys,[{role:'user',content:'(The captain is on the bridge, watching the grey out the viewport.)'}],null,150);
+      const log=chatLog('crew',c.name);
+      log.push({who:'them',text:String(say).slice(0,300)}); if(log.length>24)log.shift();
+      save();
+      showChatPop('crew',c.name,String(say).slice(0,140));
+      updateChatBadge();
+    }catch(e){}
+  }
+}

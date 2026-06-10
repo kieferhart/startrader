@@ -195,3 +195,5 @@
   .jumpscreen .jemerge{position:fixed; left:0; right:0; bottom:0; padding:12px;
     background:linear-gradient(0deg,#070510f0,#07051000); text-align:center;}
   .jumpscreen .jemerge button{font-size:14px; padding:12px 26px; letter-spacing:1px;}
+  .jgrid{display:grid; grid-template-columns:1fr; gap:0 12px;}
+  @media(min-width:700px){ .jgrid{grid-template-columns:1fr 1fr;} }

@@ -259,6 +259,7 @@ function doJump(){
   advanceTime(7+jdelay);
   rollJumpEvent();
   peopleOnJump();                              // crew act in transit; sabotage bites here
+  if(typeof aiJumpChatter==='function')aiJumpChatter();   // someone always wants to talk
   save(); renderAll();
 }
 function finishJump(){

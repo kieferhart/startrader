@@ -3,23 +3,79 @@ function renderAll(){ renderTabs(); renderTop(); renderMap(); renderWorlds(); re
   if(typeof updateChatBadge==='function'){ updateChatBadge(); if(typeof CHAT_OPEN!=='undefined'&&CHAT_OPEN&&!CHAT_CUR)renderChatPanel(); } }
 
 /* ---------- Jumpspace transit screen ---------- */
+function goodsWantedAt(w){ const out=[];
+  Object.values(TRADE).concat(COMMON).forEach(g=>{ const dm=maxDM(g.rDM,w.codes); if(dm>=2)out.push({n:g.name,dm}); });
+  out.sort((x,y)=>y.dm-x.dm); return out.slice(0,4).map(x=>x.n); }
+function goodsCheapAt(w){ const out=[];
+  Object.values(TRADE).concat(COMMON).forEach(g=>{ const dm=maxDM(g.pDM,w.codes); if(dm>=2)out.push({n:g.name,dm}); });
+  out.sort((x,y)=>y.dm-x.dm); return out.slice(0,4).map(x=>x.n); }
 function renderJumpScreen(){
   const el=document.getElementById('jumpscreen'); if(!el)return;
   const t=G&&G.transit;
   if(!t){ el.style.display='none'; return; }
   el.style.display='block';
-  const to=world(t.to);
+  const to=world(t.to); const s=SHIPS[G.ship];
+  const panel=(title,body)=>'<div class="card" style="background:#10081fcc;border-color:#3a2f55"><h3 style="background:#160f26">'+title+'</h3><div class="body">'+body+'</div></div>';
+
+  // NAV: route, fuel, arrival
+  const nav='<table><tbody>'+
+    '<tr><td class="muted">Route</td><td><b>'+t.from+'</b> → <b>'+(to?to.name:'?')+'</b></td></tr>'+
+    '<tr><td class="muted">Time in the grey</td><td>'+t.days+' day'+(t.days>1?'s':'')+(t.days>7?' <span class="neg">(rough transition)</span>':'')+'</td></tr>'+
+    '<tr><td class="muted">Arrival</td><td>day '+(G.day+1)+' · week '+(Math.floor(G.day/7)+1)+'</td></tr>'+
+    '<tr><td class="muted">Fuel remaining</td><td class="'+(G.fuel<jumpFuel()?'neg':'')+'">'+(Math.floor(G.fuel*10)/10)+'/'+s.fuelCap+'t '+(G.fuelUnrefined?'<span class="code bad">unrefined</span>':'<span class="code">refined</span>')+'</td></tr>'+
+    '</tbody></table>';
+
+  // DESTINATION INTEL
+  let intel='<div class="hint">No data on file.</div>';
+  if(to){
+    const wanted=goodsWantedAt(to), cheap=goodsCheapAt(to);
+    const holdEst=(G.hold||[]).map(h=>{ const g=ALLGOODS[h.id]||{pDM:{},rDM:{}};
+      const est=Math.round(h.base*priceMult(7+s.broker+maxDM(g.rDM,to.codes)-maxDM(g.pDM,to.codes)+(h.quality?1:0),true));
+      const gain=(est-h.ppt)*h.tons;
+      return '<tr><td>'+h.tons+'t '+h.name+'</td><td class="num '+(gain>=0?'pos':'neg')+'">'+(gain>=0?'+':'')+cr(gain)+'</td></tr>'; }).join('');
+    intel='<div class="uwp" style="font-size:13px">'+uwpString(to.u)+'</div>'+
+      '<div class="codes" style="margin:6px 0">'+(to.codes.map(c=>codeChip(c)).join('')||'<span class="muted">no trade codes</span>')+'</div>'+
+      '<table><tbody>'+
+      '<tr><td class="muted">Starport</td><td>'+to.u.sp+(('AB'.includes(to.u.sp))?' (refined fuel sold)':'ABC'.includes(to.u.sp)?' (unrefined only)':' (skim or pray)')+'</td></tr>'+
+      '<tr><td class="muted">Refuel options</td><td>'+(to.gg?'gas giant in-system · ':'')+(to.u.hydro>=2?'open water · ':'')+('ABC'.includes(to.u.sp)?'port fuel':'')+'</td></tr>'+
+      '<tr><td class="muted">Law level</td><td>'+to.u.law+(hasIllegal()&&to.u.law>=6?' <span class="neg">⚠ contraband aboard</span>':'')+
+        ((G.bills&&G.bills.mortM>=2&&to.u.law>=7)?' <span class="neg">⚠ bank liens — impound risk</span>':'')+'</td></tr>'+
+      (wanted.length?'<tr><td class="muted">Pays well for</td><td>'+wanted.join(', ')+'</td></tr>':'')+
+      (cheap.length?'<tr><td class="muted">Sells cheap</td><td>'+cheap.join(', ')+'</td></tr>':'')+
+      '</tbody></table>'+
+      (holdEst?'<div class="hint" style="margin-top:6px">Projected hold margins there (rolls will vary):</div><table><tbody>'+holdEst+'</tbody></table>':'');
+  }
+
+  // SHIP & CREW (tap a name to talk)
+  const crewRows=(G.crew||[]).map(c=>'<span class="code" style="cursor:pointer" '+
+    'title="'+c.position+' · '+moraleWord(morale(c))+' · '+hpWord(c)+' — tap to talk" '+
+    'onclick="showChat(\'crew\',\''+c.name+'\')">'+c.name.split(' ')[0]+' '+(c.down?'✚':morale(c)>25?'☺':morale(c)<-25?'☹':'·')+'</span>').join(' ');
+  const dueSoon=[];
+  (G.requests||[]).forEach(r=>{ dueSoon.push((to&&r.world===to.name?'<b class="pos">DELIVER HERE:</b> ':'')+r.tons+'t '+(r.vname||goodById(r.gid).name)+' → '+r.name+' ('+r.world+', day '+(r.due+1)+')'); });
+  (G.loans||[]).forEach(l=>{ dueSoon.push('repay '+l.from+' '+cr(Math.round(l.P*(1+l.rate/100)))+' by day '+(l.due+1)); });
+  if(G.bills&&billTotal()>0)dueSoon.push('unpaid bills '+cr(billTotal())+(G.bills.mortM?' ('+G.bills.mortM+' mo late)':''));
+  const ship='<div class="hint">Captain: '+(G.captain?G.captain.hp+'/'+G.captain.hpMax+' '+hpWord(G.captain):'fit')+' · Ship morale: '+moraleWord(shipMorale())+'</div>'+
+    '<div class="codes" style="margin:6px 0">'+crewRows+'</div>'+
+    '<div class="hint">Hold: '+holdUsed()+'/'+s.cargo+'t · cash '+cr(G.credits)+'</div>'+
+    (dueSoon.length?'<div class="hint" style="margin-top:5px">Obligations: '+dueSoon.join(' · ')+'</div>':'');
+
   const feed=(t.log||[]).map(e=>'<div class="event"><div class="t">'+e.title+(e.roll&&e.roll!=='—'?' · roll '+e.roll:'')+'</div>'+e.text+'</div>').join('')
-    ||'<div class="hint" style="text-align:center;padding:20px">The drives hum. Outside the viewports, jumpspace does what jumpspace does — best not to look too long.</div>';
+    ||'<div class="hint" style="text-align:center;padding:14px">The drives hum. Outside the viewports, jumpspace does what jumpspace does — best not to look too long.</div>';
   const pc=G.pendingChoice;
   const choice=pc?('<div class="event glow" style="border-color:#ffcf6b"><div class="t" style="color:#ffcf6b">'+pc.title+' · decision</div>'+pc.text+
     '<div class="row" style="margin-top:8px;flex-direction:column;align-items:stretch;gap:6px">'+
     pc.options.map(o=>'<button onclick="resolveChoice(\''+o.k+'\')">'+o.label+'</button>').join('')+'</div></div>'):'';
-  el.innerHTML='<div class="jwrap">'+
+
+  el.innerHTML='<div class="jwrap" style="max-width:760px">'+
     '<h2>Jumpspace Transit</h2>'+
-    '<div class="jroute"><b>'+t.from+'</b> → <b>'+(to?to.name:'?')+'</b> · '+t.days+' day'+(t.days>1?'s':'')+' in the grey · week '+(Math.floor(G.day/7)+1)+'</div>'+
-    feed+choice+
-    '<div class="hint" style="text-align:center;margin-top:14px">The comms dock still works — a week in jump is a long time to not talk to anyone.</div>'+
+    '<div class="jroute"><b>'+t.from+'</b> → <b>'+(to?to.name:'?')+'</b></div>'+
+    '<div class="jgrid">'+
+    panel('Navigation',nav)+
+    panel('Destination Intel — '+(to?to.name:'?'),intel)+
+    '</div>'+
+    panel('Ship & Crew',ship)+
+    panel('Transit Log',feed+choice)+
+    '<div class="hint" style="text-align:center;margin:10px 0 0">A week in the grey is a long time. The comms dock works — and the crew knows where to find you.</div>'+
     '</div>'+
     '<div class="jemerge"><button class="primary" '+(pc?'disabled title="Deal with the situation first"':'')+' onclick="finishJump()">Emerge at '+(to?to.name:'destination')+' ▶</button></div>';
 }

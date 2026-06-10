@@ -68,11 +68,25 @@ async function aiCall(system,messages,schema,maxTok){
 
 /* ---------- shared context builders ---------- */
 function shipBrief(){
-  const w=here();
+  const w=here(); const s=SHIPS[G.ship];
   const recent=(G.log||[]).slice(0,5).map(e=>e.text.replace(/<[^>]*>/g,'')).join(' | ');
-  return 'Ship status: docked at '+w.name+' ('+(w.codes.join(' ')||'plain world')+', law '+w.u.law+'). '+
-    'Captain visible funds roughly '+cr(Math.round(G.credits/1000)*1000)+'. Hold '+holdUsed()+'/'+SHIPS[G.ship].cargo+'t. '+
-    'Ship morale: '+moraleWord(shipMorale())+'. Recent events: '+(recent||'a quiet stretch')+'.';
+  const cargo=(G.hold||[]).slice(0,5).map(h=>h.tons+'t '+h.name+' ('+goodCat(h)+')').join(', ');
+  const loans=(G.loans||[]).map(l=>'owes '+l.from+' '+cr(Math.round(l.P*(1+l.rate/100)))+' by day '+(l.due+1)).join('; ');
+  const reqs=(G.requests||[]).map(r=>r.tons+'t '+(r.vname||goodById(r.gid).name)+' promised to '+r.name+' on '+r.world+' by day '+(r.due+1)).join('; ');
+  return 'GAME STATE — day '+(G.day+1)+', the ship ('+s.name+') is docked at '+w.name+' ('+(w.codes.join(' ')||'plain world')+', law '+w.u.law+', starport '+w.u.sp+'). '+
+    'Captain visible funds roughly '+cr(Math.round(G.credits/1000)*1000)+'. '+
+    'Hold '+holdUsed()+'/'+s.cargo+'t'+(cargo?' carrying: '+cargo:' (empty)')+'. '+
+    'Fuel '+Math.floor(G.fuel==null?0:G.fuel)+'/'+s.fuelCap+'t '+(G.fuelUnrefined?'UNREFINED (misjump risk until purified)':'refined')+'. '+
+    'Ship morale: '+moraleWord(shipMorale())+'. Captain health: '+(G.captain?hpWord(G.captain):'fit')+'. '+
+    (loans?'Ship debts: '+loans+'. ':'')+(reqs?'Open delivery commissions: '+reqs+'. ':'')+
+    'Recent events: '+(recent||'a quiet stretch')+'.';
+}
+function businessWith(ch){
+  const bits=[];
+  (G.loans||[]).filter(l=>l.fromId===ch.id).forEach(l=>bits.push('the captain owes YOU '+cr(Math.round(l.P*(1+l.rate/100)))+', due day '+(l.due+1)+(l.missed?' (ALREADY MISSED ONCE — you are not amused)':'')));
+  (G.lent||[]).filter(l=>l.toId===ch.id&&!l.resolved).forEach(l=>bits.push('YOU owe the captain '+cr(Math.round(l.P*(1+l.rate/100)))+', promised by day '+(l.due+1)));
+  (G.requests||[]).filter(r=>r.by===ch.id).forEach(r=>bits.push('the captain promised you '+r.tons+'t of '+(r.vname||goodById(r.gid).name)+' by day '+(r.due+1)+' at '+cr(r.ppt)+'/t'));
+  return bits.length?' OUTSTANDING BUSINESS between you and this captain: '+bits.join('; ')+'. Bring it up if it matters to you.':'';
 }
 function crewSheet(c){
   const rels=Object.entries(c.crels||{}).map(([k,v])=>(k==='@captain'?'the captain':k)+' '+(v>0?'+':'')+v).join(', ');
@@ -88,7 +102,7 @@ function npcSheet(ch){
     'Your feeling toward this ship and crew: '+shipRel(ch)+' (−100..+100). '+
     'You met them on '+ch.world+'. '+
     (ch.wantItem?('You NEED to source a specific item: '+ch.wantItem.vname+' ('+goodById(ch.wantItem.gid).name+'). If you ask the captain to obtain goods for you, it must be exactly that item — never any other goods. '):'')+
-    shipBrief()+worldKnowledge(ch.name);
+    shipBrief()+businessWith(ch)+worldKnowledge(ch.name);
 }
 function worldKnowledge(excludeName){
   const from=here(); 

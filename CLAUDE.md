@@ -95,12 +95,20 @@ People-sim rules that matter:
 - **World gen** — `genUWP`, `tradeCodes`, `genSubsector` (8×10 hex), `hexDist` (odd-q
   cube distance), `uwpString`. UWP = Starport/Size/Atmo/Hydro/Pop/Gov/Law-TL, all per
   Cepheus (starport = 2D6−7+Pop; pop-0 zeroes gov/law/tl; full TL DM table + min-TL).
-- **`SHIPS`** — per-ship `cargo`, `jump`, `perJump` fuel, `mortgage` (= price/240,
-  40-yr note), `price`, `broker`. **Salaries, maintenance and life support are NOT on
-  the ship object** — they're derived live: `crewSalaries()` (sum of `G.crew` salaries),
-  `shipMaint()` (0.1%/yr of price ÷12), `lifeSupport()` (Cr2,000 × `staterooms()`,
-  staterooms = ⌈crew/2⌉). `monthlyTotal()` = mortgage + salaries + maint + life support.
-  The `easy` hauler is mortgage-free (low-stress mode).
+- **`SHIPS`** — the Cepheus SRD **Common Vessels** roster (book2/common-vessels.md,
+  TL9 hulls): Courier, Yacht, Merchant Trader, Frontier Trader, Merchant Freighter,
+  plus `easy` = a paid-off Asteroid Miner. Per ship: `hull`, `cargo`, `jump`,
+  `fuelCap`, `plantWk`, `rooms`, `price`, `mortgage` (price/240), `broker`.
+  `SHIP_ALIAS` maps legacy save keys (free/far/sub). **Fuel per the SRD:** jump
+  burns `0.1 × hull × distance` (`jumpFuel(dist)`); the power plant burns
+  `plantWk` t/week continuously (in `advanceTime`); `refuel(kind)` in game.js:
+  refined Cr500/t (A/B), unrefined Cr100/t (A–C; D/E Cr300 house-rule bowser),
+  free skim from gas giant (`w.gg`, rolled 2D6≥5 at worldgen) or hydro≥2 water —
+  1 day, sets `G.fuelUnrefined`; onboard processors `purify` in 1 day. Unrefined
+  fuel = −2 on the jump check in `doJump` (misjump: delay + repair bill).
+  `lifeSupport()` = Cr2,000 × the design's FIXED stateroom count (SRD: occupied
+  or not — the 25-room Frontier Trader is deliberately expensive).
+  `monthlyTotal()` = mortgage + salaries + maint + life support.
 - **Crew** — `genCrew`, `CREW_TMPL`, `SKILLPOOL`, `NPC_REL` (the book's d66 relationship
   table). Each member: UPP (6 hex chars, STR·DEX·END·INT·EDU·SOC), age, skills,
   salary, and a relationship pointing at another crewmate.
@@ -208,9 +216,9 @@ on port 8731, serving the project root. Use `preview_start` then `preview_eval` 
 
 - The economy is **generous** by design-of-Traveller: Cepheus price swings run from
   0.2× to 4× base (sale up to 4×), so a sharp trader profits most runs. The **mortgage**
-  (Free Trader ≈ Cr154k/mo) dominates the ~Cr176k/mo Free-Trader burden (mortgage +
-  Cr15k salaries + Cr3k maint + Cr4k life support), billed every 4 weeks — the main
-  source of tension. Life support scales with crew size (Cr2,000 per 2 crew).
+  (Merchant Trader ≈ Cr146k/mo on the MCr34.9 hull) plus fixed-stateroom life support
+  and real fuel purchases are the tension, billed every 4 weeks. Skim+purify (2 days)
+  vs Cr500/t refined is the core fuel decision; unrefined shortcuts risk misjumps.
 - Starting capital is Cr250,000 ≈ one month of runway before the first bill.
 - If asked to make it harder: enable bigger price-swing dampening, raise upkeep, or
   start the player in debt with a payoff goal. The `easy` hauler exists for the opposite.

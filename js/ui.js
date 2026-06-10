@@ -1,6 +1,22 @@
 /* ---------- Rendering ---------- */
-function renderAll(){ renderTabs(); renderTop(); renderMap(); renderWorlds(); renderCurrentWorld(); renderMarket(); renderHold(); renderLog(); renderJumpBtn(); renderCommitments(); renderPendingChoice();
+function renderAll(){ renderTabs(); renderTop(); renderMap(); renderWorlds(); renderCurrentWorld(); renderMarket(); renderHold(); renderLog(); renderJumpBtn(); renderFuel(); renderCommitments(); renderPendingChoice();
   if(typeof updateChatBadge==='function'){ updateChatBadge(); if(typeof CHAT_OPEN!=='undefined'&&CHAT_OPEN&&!CHAT_CUR)renderChatPanel(); } }
+
+/* ---------- Fuel (SRD tankage: jump 0.1xhull/pc; plant burns weekly) ---------- */
+function renderFuel(){
+  const el=document.getElementById('fuelbox'); if(!el)return;
+  const s=SHIPS[G.ship]; const w=here(); const sp=w.u.sp;
+  const full=G.fuel>=s.fuelCap-0.01;
+  el.innerHTML='<div class="hint" style="margin:6px 0 4px">Fuel: <b class="'+(G.fuel<jumpFuel()?'neg':'')+'">'+
+    (Math.floor(G.fuel*10)/10)+'/'+s.fuelCap+'t</b> '+(G.fuelUnrefined?'<span class="code bad" title="−2 on the jump check — purify or refill clean">unrefined</span>':'<span class="code">refined</span>')+
+    ' · jump burns '+jumpFuel()+'t/pc · plant '+s.plantWk+'t/wk</div>'+
+    '<div class="row">'+
+    '<button '+(full||!'AB'.includes(sp)?'disabled ':'')+'onclick="refuel(\'refined\')" title="Class A/B ports only">Refined Cr500/t</button>'+
+    '<button '+(full||!'ABCDE'.includes(sp)?'disabled ':'')+'onclick="refuel(\'unrefined\')" title="A–C Cr100/t; D/E Cr300/t — misjump risk">Unrefined</button>'+
+    '<button '+(full||(!w.gg&&w.u.hydro<2)?'disabled ':'')+'onclick="refuel(\'skim\')" title="Free from a gas giant or open water — 1 day, unrefined">Skim (1d)</button>'+
+    '<button '+(!G.fuelUnrefined?'disabled ':'')+'onclick="refuel(\'purify\')" title="Onboard processors — 1 day">Purify (1d)</button>'+
+    '</div>';
+}
 
 /* ---------- Commitments (loans, receivables, delivery commissions) ---------- */
 function renderCommitments(){
@@ -89,6 +105,9 @@ function renderTop(){
   document.getElementById('t-day').textContent=G.day+1;
   document.getElementById('t-loc').textContent=here().name;
   document.getElementById('t-hold').textContent=holdUsed()+'/'+SHIPS[G.ship].cargo+'t';
+  const fe=document.getElementById('t-fuel');
+  if(fe){ fe.textContent=Math.floor(G.fuel==null?0:G.fuel)+'/'+SHIPS[G.ship].fuelCap+'t'+(G.fuelUnrefined?'*':'');
+    fe.className='val '+(G.fuel<jumpFuel()?'neg':G.fuelUnrefined?'':'' ); fe.title=G.fuelUnrefined?'Unrefined fuel aboard — misjump risk; purify or burn it off':'Refined fuel'; }
   document.getElementById('ss-name').textContent=G.ssname;
   document.getElementById('jrange').textContent='J'+SHIPS[G.ship].jump;
 }
@@ -173,8 +192,10 @@ function renderJumpBtn(){
   if(G.dest!=null&&G.dest!==G.here){
     const to=world(G.dest), d=hexDist(here(),to), jr=SHIPS[G.ship].jump;
     dn=to.name+' ('+uwpString(to.u)+')';
+    const need=jumpFuel(d);
     if(d>jr){ info='<span class="neg">'+d+'pc — beyond J'+jr+'</span>'; }
-    else { dis=false; info=d+'pc · fuel '+cr(SHIPS[G.ship].perJump*d)+' · 1 week'; }
+    else if(G.fuel<need){ info='<span class="neg">'+d+'pc — needs '+need+'t fuel (have '+Math.floor(G.fuel)+'t)</span>'; }
+    else { dis=false; info=d+'pc · '+need+'t fuel'+(G.fuelUnrefined?' (unrefined!)':'')+' · 1 week'; }
   }
   [['jumpbtn','jump-info','dest-name'],['jumpbtn-m','jump-info-m','dest-name-m']].forEach(ids=>{
     const b=document.getElementById(ids[0]), i=document.getElementById(ids[1]), n=document.getElementById(ids[2]);
@@ -193,7 +214,9 @@ function showShip(){
     '<tr><td>Cargo capacity</td><td>'+s.cargo+' tons ('+holdUsed()+' used)</td></tr>'+
     '<tr><td>Jump rating</td><td>J'+s.jump+'</td></tr>'+
     '<tr><td>Broker skill</td><td>'+s.broker+' (helps buy & sell)</td></tr>'+
-    '<tr><td>Fuel / operations per parsec</td><td>'+cr(s.perJump)+'</td></tr>'+
+    '<tr><td>Fuel tankage</td><td>'+(Math.floor(G.fuel*10)/10)+' / '+s.fuelCap+'t ('+(G.fuelUnrefined?'unrefined — misjump risk':'refined')+')</td></tr>'+
+    '<tr><td>Jump fuel</td><td>'+jumpFuel()+'t per parsec (0.1 × '+s.hull+'t hull)</td></tr>'+
+    '<tr><td>Power plant burn</td><td>'+s.plantWk+'t per week, even at dock</td></tr>'+
     '<tr><td>Mortgage</td><td>'+(s.mortgage?cr(s.mortgage)+' / month — 1/240 of the '+cr(s.price)+' hull (40-year note)':'none — paid off')+'</td></tr>'+
     '<tr><td>Crew salaries</td><td>'+(crewSalaries()?cr(crewSalaries())+' / month ('+G.crew.length+' crew)':'profit-share (no salary)')+'</td></tr>'+
     '<tr><td>Maintenance</td><td>'+(shipMaint()?cr(shipMaint())+' / month — 0.1%/yr of hull':'none')+'</td></tr>'+
@@ -325,7 +348,7 @@ function showHelp(){
    '<li><b>Search for cargo</b> at the current world. <i>At the starport</i> is quick; <i>away from port</i> is cheaper (and opens the black market) but takes longer and risks an encounter.</li>'+
    '<li><b>Buy</b> goods in the Market. Green prices are below base value — bargains. You’re limited by credits and hold space.</li>'+
    '<li><b>Pick a destination</b> on the <b>Star Map</b> tab — tap a world, then Jump right from the map. A world that <i>wants</i> your cargo pays more — its trade codes drive the resale price.</li>'+
-   '<li><b>Jump.</b> Costs fuel and one week; a Jump Event fires. On arrival, <b>Sell</b> from your hold.</li>'+
+   '<li><b>Jump.</b> Burns real fuel (0.1 × hull tons per parsec) and one week; a Jump Event fires. On arrival, <b>Sell</b> from your hold. <b>Refuel on the Bridge tab</b>: refined Cr500/t (A/B ports), unrefined Cr100/t (A–C, −2 misjump risk), or skim a gas giant / open water for free and purify with the onboard processors — a day each. The power plant sips fuel every week even at dock.</li>'+
    '<li>Repeat. Watch the <b>Ledger</b> on the right — it’s your captain’s diary.</li>'+
    '</ol>'+
    '<p class="hint"><b>Trade codes</b> (Ag, In, Hi, Ht, Ri…) on each world decide what’s produced cheaply and what sells dear. Example: buy <i>Textiles</i> on an <b>Ag</b> world, sell on a <b>Hi</b> or <b>Na</b> world.</p>'+
@@ -339,12 +362,12 @@ function confirmNewGame(){
   openModal('<h2>NEW GAME</h2><p>Choose your starship. A fresh subsector will be generated.</p>'+
    Object.keys(SHIPS).map(k=>{const s=SHIPS[k];
     const tmpl=CREW_TMPL[k]||[]; const sal=tmpl.reduce((a,t)=>a+t[1],0);
-    const rooms=Math.max(1,Math.ceil(tmpl.length/2));
-    const over=Math.round((s.price||0)*0.001/12)+rooms*2000;
+    const over=Math.round((s.price||0)*0.001/12)+s.rooms*2000;
     const upkeep=(s.mortgage||0)+sal+over;
     return '<div class="card" style="margin-bottom:8px;cursor:pointer" onclick="startWith(\''+k+'\')">'+
-     '<div class="body"><b>'+s.name+'</b><div class="hint">'+s.cargo+'t hold · J'+s.jump+' · broker '+s.broker+' · '+
-     cr(upkeep)+'/mo upkeep'+(s.mortgage?' (mortgaged)':'')+'</div></div></div>';}).join('')+
+     '<div class="body"><b>'+s.name+'</b><div class="hint">'+s.cargo+'t hold · J'+s.jump+' · fuel '+s.fuelCap+'t · '+
+     s.rooms+' staterooms · crew '+tmpl.length+' · broker '+s.broker+'</div>'+
+     '<div class="hint">'+cr(upkeep)+'/mo upkeep'+(s.mortgage?' ('+cr(s.mortgage)+' mortgage on the '+cr(s.price)+' hull)':' — owned outright')+'</div></div></div>';}).join('')+
    '<div style="text-align:right;"><button onclick="closeModal()">Cancel</button></div>');
 }
 function startWith(k){ closeModal(); newGame(k); }

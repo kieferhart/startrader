@@ -75,7 +75,7 @@ function genSubsector(){
   for(let col=1;col<=8;col++)for(let row=1;row<=10;row++){
     if(Math.random()<0.30 && i<NAMES.length){
       const u=genUWP();
-      worlds.push({id:i, name:NAMES[i], col, row, u, codes:tradeCodes(u)});
+      worlds.push({id:i, name:NAMES[i], col, row, u, codes:tradeCodes(u), gg:_2d6()>=5});
       i++;
     }
   }
@@ -83,7 +83,7 @@ function genSubsector(){
   while(worlds.length<12 && i<NAMES.length){
     const col=R(8),row=R(10);
     if(worlds.some(w=>w.col===col&&w.row===row))continue;
-    const u=genUWP(); worlds.push({id:i,name:NAMES[i],col,row,u,codes:tradeCodes(u)}); i++;
+    const u=genUWP(); worlds.push({id:i,name:NAMES[i],col,row,u,codes:tradeCodes(u),gg:_2d6()>=5}); i++;
   }
   return worlds;
 }

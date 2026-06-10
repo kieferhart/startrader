@@ -44,7 +44,11 @@ let G=null;
 const SAVE='starTraderSave_v1';
 function save(){ try{localStorage.setItem(SAVE,JSON.stringify(G));}catch(e){} }
 function load(){ try{const s=localStorage.getItem(SAVE); if(!s)return null; const g=JSON.parse(s);
-  if(g&&g.worlds){ if(!g.books)g.books=emptyBooks(); if(!g.crew||!g.crew.length)g.crew=genCrew(g.ship);
+  if(g&&g.worlds){
+    if(!SHIPS[g.ship])g.ship=SHIP_ALIAS[g.ship]||'trader';        // legacy ship keys
+    if(g.fuel==null){ g.fuel=SHIPS[g.ship].fuelCap; g.fuelUnrefined=false; }
+    g.worlds.forEach(w=>{ if(w.gg==null)w.gg=_2d6()>=5; });
+    if(!g.books)g.books=emptyBooks(); if(!g.crew||!g.crew.length)g.crew=genCrew(g.ship);
     if(!g.mods)g.mods=emptyMods(); if(!g.contacts)g.contacts=[]; if(!g.tab)g.tab='trade';
     if(!g.cast)g.cast=[]; if(g.castSeq==null)g.castSeq=0;
     if(!g.loans)g.loans=[]; if(!g.lent)g.lent=[]; if(!g.requests)g.requests=[];
@@ -55,6 +59,7 @@ function load(){ try{const s=localStorage.getItem(SAVE); if(!s)return null; cons
   return g; }catch(e){return null;} }
 
 function newGame(shipKey){
+  shipKey=SHIPS[shipKey]?shipKey:(SHIP_ALIAS[shipKey]||'trader');
   evReset();
   // Guarantee: the start world has >=1 world within the ship's jump range and
   // can chain (leg by leg) to >=5 more — i.e. it sits in a jump-connected
@@ -71,6 +76,7 @@ function newGame(shipKey){
     worlds, here:start.id, dest:null,
     credits:250000, startCredits:250000,
     day:0, lastMonth:0,
+    fuel:SHIPS[shipKey].fuelCap, fuelUnrefined:false,
     hold:[], market:null, marketSrc:'', contacts:[],
     crew:genCrew(shipKey), books:emptyBooks(),
     mods:emptyMods(), pendingChoice:null, choiceSeq:0,
@@ -190,6 +196,10 @@ function advanceTime(days){
       const parts=[]; if(mort)parts.push('mortgage'); if(sal)parts.push('salaries'); if(over)parts.push('maintenance & life support');
       logEntry('Monthly bill — '+parts.join(' + ')+' '+cr(-bill)+(G.credits<0?' ⚠ overdrawn — the bank is watching':''),'money',-bill); }
   }
+  // power plant burns fuel continuously (SRD: plantWk tons per week)
+  if(G.fuel!=null){ const burn=SHIPS[G.ship].plantWk*days/7;
+    const had=G.fuel; G.fuel=Math.max(0,Math.round((G.fuel-burn)*100)/100);
+    if(had>0&&G.fuel<=0)logEntry('Fuel tanks have run dry — the plant is on reserve cells. No jumping until you refuel.','muted'); }
   if(G._timeBusy)return;                       // dues/healing can advance time themselves
   G._timeBusy=true;
   try{
@@ -206,12 +216,22 @@ function doJump(){
   const dist=hexDist(from,to);
   const jr=SHIPS[G.ship].jump;
   if(dist>jr){ flash('That world is '+dist+' parsecs away — beyond Jump-'+jr+'.'); return; }
+  const need=jumpFuel(dist);
+  if(G.fuel<need){ flash('Jump-'+dist+' needs '+need+'t of fuel — tanks hold '+Math.floor(G.fuel)+'t. Refuel first (Bridge tab).'); return; }
   dropChoice();
   document.getElementById('event-area').innerHTML='';   // fresh feed for the new leg
-  const fuel=SHIPS[G.ship].perJump*dist;
-  G.credits-=fuel; book('fuel',-fuel);
-  logEntry('Jumped '+dist+' parsec'+(dist>1?'s':'')+' to '+to.name+' — fuel/operations '+cr(-fuel),'money',-fuel);
-  advanceTime(7);
+  G.fuel=Math.round((G.fuel-need)*100)/100;
+  logEntry('Jumped '+dist+' parsec'+(dist>1?'s':'')+' to '+to.name+' — burned '+need+'t of '+(G.fuelUnrefined?'unrefined':'refined')+' fuel.','muted');
+  let jdelay=0, jmsg='';
+  if(G.fuelUnrefined){                          // SRD: unrefined fuel is −2 on the jump check
+    const roll=_2d6()-2+Math.min(2,crewSkill('Engineer'));
+    if(roll<=0){ const rep=1000*d6(); jdelay=d6(); pay(rep,'incidentals','Misjump on dirty fuel — drive damage');
+      jmsg='MISJUMP. The drive screams on unrefined hydrogen and wrenches you out of jump space the hard way — '+jdelay+' extra days adrift and '+cr(rep)+' in drive repairs.'; }
+    else if(roll<8){ jdelay=Math.ceil(d6()/2);
+      jmsg='Rough transition on unrefined fuel — you emerge well off the mark. '+jdelay+' extra day'+(jdelay>1?'s':'')+' limping in-system.'; }
+  }
+  advanceTime(7+jdelay);
+  if(jmsg)showEvent('Jump Transition','—',jmsg);
   rollJumpEvent();
   peopleOnJump();                              // crew act in transit; sabotage bites here
   G.here=G.dest; G.dest=null;
@@ -224,3 +244,39 @@ function doJump(){
   save(); renderAll();
 }
 
+
+
+/* ---------- Refueling (Cepheus SRD: off-world-travel.md) ---------- */
+function refuel(kind){
+  const s=SHIPS[G.ship]; const w=here(); const sp=w.u.sp;
+  const space=Math.max(0,Math.ceil(s.fuelCap-G.fuel));
+  if(kind!=='purify'&&space<=0){ flash('Tanks are already full.'); return; }
+  if(kind==='refined'){
+    if(!'AB'.includes(sp)){ flash('Refined fuel (Cr500/t) is sold only at class A or B starports.'); return; }
+    const cost=space*500; if(G.credits<cost){ flash('Topping up costs '+cr(cost)+'.'); return; }
+    pay(cost,'fuel','Refined fuel — '+space+'t @ Cr500');
+    if(G.fuel<=0.01)G.fuelUnrefined=false;      // a clean fill of an empty tank
+    G.fuel=s.fuelCap;
+  } else if(kind==='unrefined'){
+    if(!'ABCDE'.includes(sp)){ flash('No port services here — skim a gas giant or water source.'); return; }
+    const rate='ABC'.includes(sp)?100:300;      // D/E: a local bowser at a markup (house rule)
+    const cost=space*rate; if(G.credits<cost){ flash('Topping up costs '+cr(cost)+'.'); return; }
+    pay(cost,'fuel','Unrefined fuel — '+space+'t @ Cr'+rate);
+    G.fuel=s.fuelCap; G.fuelUnrefined=true;
+  } else if(kind==='skim'){
+    if(!w.gg&&w.u.hydro<2){ flash('Nothing to skim — no gas giant in-system and no open water.'); return; }
+    advanceTime(1);
+    G.fuel=s.fuelCap; G.fuelUnrefined=true;
+    logEntry('Skimmed '+(w.gg?'the gas giant':'local waters')+' — tanks full of unrefined hydrogen. Free, if you ignore the day.','muted');
+    if(w.gg&&d6()===1){ const c=skillCheck(8,'Gunner','Tactics');
+      if(c.ok)logEntry('A pirate skiff shadowed you at the gas giant; your gunnery discouraged it.'+'','muted');
+      else { const b=500*d6(); pay(b,'incidentals','Pirates harried you while skimming — repairs'); } }
+  } else if(kind==='purify'){
+    if(!G.fuelUnrefined){ flash('The fuel aboard is already refined.'); return; }
+    advanceTime(1);
+    G.fuelUnrefined=false;
+    logEntry('Ran the tanks through the onboard fuel processors — refined and jump-safe.','muted');
+  }
+  if(typeof notifyAction==='function')notifyAction('Refueled ('+kind+'). Tanks: '+Math.floor(G.fuel)+'/'+s.fuelCap+'t '+(G.fuelUnrefined?'unrefined':'refined')+'.');
+  save(); renderAll();
+}
